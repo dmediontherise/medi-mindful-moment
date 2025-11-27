@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medi Mindful Moment - Daily Affirmation Generator</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font: Inter -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Softer, slightly blue background */
+        }
+        /* Custom scrollbar for history to match theme */
+        .custom-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background-color: #a5b4fc; /* Light blue thumb */
+            border-radius: 3px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #e0e7ff; /* Very light track */
+        }
+        /* Style for buttons that handle navigation */
+        .native-share-btn:active {
+            transform: scale(0.98);
+        }
+        /* Styles for the Toast Notification */
+        .toast-enter {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        .toast-enter-active {
+            opacity: 1;
+            transform: translateY(0);
+            transition: opacity 0.3s, transform 0.3s;
+        }
+        .toast-exit {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .toast-exit-active {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.3s, transform 0.3s;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <!-- Main Application Container -->
+    <div id="app" class="w-full max-w-lg bg-white shadow-2xl rounded-3xl p-6 md:p-8 transition-all duration-300">
+        
+        <header class="text-center mb-6">
+            <p id="current-date" class="text-sm font-medium text-blue-500 mb-1"></p>
+            <h1 class="text-3xl font-extrabold text-[#104E9E]">Medi Mindful Moment</h1>
+            <p id="auth-status" class="text-xs text-gray-400 mt-1">Connecting...</p> 
+        </header>
+
+        <!-- Dynamic Content Area -->
+        <div id="content-area" class="min-h-[400px] flex flex-col justify-center">
+            <!-- Content will be rendered here (Mood Selector, Card, History) -->
+            <div class="flex justify-center items-center h-full">
+                <div class="text-center text-gray-500">Initializing app...</div>
+            </div>
+        </div>
+
+        <!-- Floating Bottom Navigation -->
+        <nav id="nav-bar" class="flex justify-around mt-8 border-t pt-4 sticky bottom-0 bg-white shadow-t-lg" style="display: none;">
+            <button onclick="renderMoodSelector()" class="p-3 rounded-xl hover:bg-blue-100 transition-colors text-gray-500 hover:text-[#104E9E]">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-7 h-7">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18m9-9H3" />
+                </svg>
+                <span class="sr-only">New Affirmation</span>
+            </button>
+            <button onclick="renderHistory('history')" class="p-3 rounded-xl hover:bg-blue-100 transition-colors text-gray-500 hover:text-[#104E9E]">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-7 h-7">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.75h-7.5v2.75M19.5 7.5v-2.75h-7.5v2.75m7.5 10.5v-2.75h-7.5v2.75M4.5 7.5v-2.75h-2.25v2.75M4.5 14.25v-2.75h-2.25v2.75M4.5 21v-2.75h-2.25v2.75" />
+                </svg>
+                <span class="sr-only">History</span>
+            </button>
+            <button onclick="renderHistory('favorites')" class="p-3 rounded-xl hover:bg-blue-100 transition-colors text-gray-500 hover:text-[#104E9E]">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-7 h-7">
+                    <path fill-rule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" clip-rule="evenodd" />
+                </svg>
+                <span class="sr-only">Favorites</span>
+            </button>
+        </nav>
+    </div>
+    
+    <!-- Share Options Modal -->
+    <div id="share-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 transition-opacity duration-300" style="display: none;">
+        <div id="modal-content" class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-xs transform transition-all duration-300 scale-90">
+            <h3 class="text-xl font-bold text-gray-800 mb-4 text-center">Share This Moment</h3>
+            <div id="share-content-text" class="text-center text-sm font-light text-gray-600 mb-4 italic p-2 border-b border-gray-200"></div>
+            
+            <!-- Fallback Guidance -->
+            <p class="text-xs text-red-500 text-center mb-4 p-2 bg-red-50 rounded-lg">
+                <span class="font-bold">Important:</span> If Text/Email buttons do not open an app, please use "Copy to Clipboard" and paste manually.
+            </p>
+
+            <div class="space-y-3" id="share-buttons-container">
+                <!-- Share buttons will be injected here -->
+            </div>
+            <button onclick="closeShareModal()" class="w-full mt-6 py-3 rounded-xl bg-gray-200 text-gray-700 font-semibold hover:bg-gray-300 transition-colors">Close</button>
+        </div>
+    </div>
+
+    <!-- Floating Toast Notification -->
+    <div id="toast-notification" class="fixed bottom-4 left-1/2 -translate-x-1/2 p-3 bg-green-500 text-white rounded-xl shadow-xl z-50 text-sm font-medium transition-all" style="display: none; opacity: 0;">
+        <!-- Message will be inserted here -->
+    </div>
+
+
+    <!-- Firebase Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, query, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Set log level to debug for development
+        setLogLevel('debug');
+
+        // --- GLOBAL STATE & FIREBASE SETUP ---
+        let db;
+        let auth;
+        let userId = null;
+        let history = []; 
+        let favorites = []; 
+        let currentAffirmation = null;
+        let currentShareText = ""; // Global state for the text to be shared
+
+        // Session Stack for Back/Next/Undo functionality (Local to the session)
+        const sessionStack = [];
+        let stackIndex = -1; // -1 means no affirmation is currently displayed
+
+        // Function to set the current date
+        function setCurrentDate() {
+            const dateElement = document.getElementById('current-date');
+            if (dateElement) {
+                const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                dateElement.textContent = new Date().toLocaleDateString('en-US', options);
+            }
+        }
+        setCurrentDate(); // Call on load
+
+        const SEED_AFFIRMATIONS = [
+            { id: 'a01', mood: 'Anxious', text: 'My breath creates a space of calm, separating me from the rushing thoughts.', category: 'Grounding' },
+            { id: 'a02', mood: 'Anxious', text: 'I am safe in this moment. I have handled uncertainty before, and I will now.', category: 'Resilience' },
+            { id: 'a03', mood: 'Anxious', text: 'I can observe this energy without judgement; it does not control my day.', category: 'Self-Kindness' },
+            { id: 'a04', mood: 'Anxious', text: 'Gently slow your pace. You have permission to move with intention, not haste.', category: 'Grounding' },
+            { id: 'a05', mood: 'Anxious', text: 'This feeling is only temporary, a passing cloud in the wide sky of my awareness.', category: 'Reflection' },
+            { id: 'b01', mood: 'Excited', text: 'I welcome this energy and channel it toward meaningful, focused creation today.', category: 'Motivation' },
+            { id: 'b02', mood: 'Excited', text: 'Let this joy be contagious. I can share my enthusiasm with a sense of peace.', category: 'Gratitude' },
+            { id: 'b03', mood: 'Excited', text: 'I trust my instincts. This positive momentum is a clear sign to move forward.', category: 'Empowerment' },
+            { id: 'b04', mood: 'Excited', text: 'My success is already unfolding, layer by layer, in its perfect timing.', category: 'Motivation' },
+            { id: 'b05', mood: 'Excited', text: 'I appreciate the anticipation. I will honor this moment by fully enjoying the present.', category: 'Reflection' },
+            { id: 'c01', mood: 'Tired', text: 'Rest is not a luxury, but a productive step toward my sustainable future.', category: 'Self-Kindness' },
+            { id: 'c02', mood: 'Tired', text: 'I have done enough today. I can soften my focus and simply allow myself to recharge.', category: 'Calm' },
+            { id: 'c03', mood: 'Tired', text: 'Even in this slump, I am grateful for the body that carries me through my life.', category: 'Gratitude' },
+            { id: 'c04', mood: 'Tired', text: 'Only essential tasks require my attention; the rest can wait patiently until tomorrow.', category: 'Empowerment' },
+            { id: 'c05', mood: 'Tired', text: 'Let the weight fall away. You deserve to feel light and unburdened right now.', category: 'Grounding' },
+            { id: 'd01', mood: 'Confident', text: 'My voice is important, and I will share my insights with clear, calm assurance.', category: 'Empowerment' },
+            { id: 'd02', mood: 'Confident', text: 'I am prepared for what comes next, trusting the preparation and wisdom I hold.', category: 'Resilience' },
+            { id: 'd03', mood: 'Confident', text: 'I hold a deep belief in my own abilities; my path forward is completely clear.', category: 'Motivation' },
+            { id: 'd04', mood: 'Confident', text: 'I give myself credit for how far I have come, using that strength for this step.', category: 'Reflection' },
+            { id: 'd05', mood: 'Confident', text: 'Today, I will stand tall and take up the space I deserve in the world.', category: 'Grounding' },
+            { id: 'e01', mood: 'Overwhelmed', text: 'I will break this complex situation down into the smallest possible first step.', category: 'Motivation' },
+            { id: 'e02', mood: 'Overwhelmed', text: 'Release the need for perfection. Good enough is a beautiful, sustainable goal.', category: 'Self-Kindness' },
+            { id: 'e03', mood: 'Overwhelmed', text: 'I can gently pause and reset. The world will wait for me to take this necessary breath.', category: 'Calm' },
+            { id: 'e04', mood: 'Overwhelmed', text: 'I am capable of managing this feeling; I will choose to focus on just one thing now.', category: 'Empowerment' },
+            { id: 'e05', mood: 'Overwhelmed', text: 'My mind is a priority. I will protect its peace by limiting incoming information.', category: 'Grounding' },
+            { id: 'f01', mood: 'Neutral', text: 'This day is a blank page, offering a thousand possibilities for focused intention.', category: 'Reflection' },
+            { id: 'f02', mood: 'Neutral', text: 'I am present and observant, noticing the small details that bring gentle joy.', category: 'Gratitude' },
+            { id: 'f03', mood: 'Neutral', text: 'Let curiosity guide me. Today I am open to learning and experiencing something new.', category: 'Motivation' },
+            { id: 'f04', mood: 'Neutral', text: 'I allow myself to simply be, accepting this moment without any demand for change.', category: 'Calm' },
+            { id: 'f05', mood: 'Neutral', text: 'I trust the rhythm of the day and choose the pace that feels most true to my needs.', category: 'Empowerment' }
+        ];
+
+        // Ensure __app_id and __firebase_config are defined globally by Canvas
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+
+        /**
+         * Initializes Firebase and authenticates the user.
+         */
+        async function initializeAppAndAuth() {
+            try {
+                if (!firebaseConfig || Object.keys(firebaseConfig).length === 0) {
+                    throw new Error("Firebase configuration not found.");
+                }
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                const authStatusEl = document.getElementById('auth-status');
+
+                // Wait for auth state to be resolved
+                await new Promise(resolve => {
+                    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+                        if (!user) {
+                            const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                            if (initialAuthToken) {
+                                await signInWithCustomToken(auth, initialAuthToken);
+                            } else {
+                                await signInAnonymously(auth);
+                            }
+                        }
+                        // User is now signed in (custom or anonymous)
+                        userId = auth.currentUser?.uid || crypto.randomUUID();
+                        
+                        // Hide User ID
+                        authStatusEl.textContent = 'Data service connected.'; 
+                        unsubscribe();
+                        resolve();
+                    });
+                });
+
+                loadHistory();
+                document.getElementById('nav-bar').style.display = 'flex';
+                renderMoodSelector();
+
+            } catch (error) {
+                console.error("Error during Firebase initialization or authentication:", error);
+                document.getElementById('content-area').innerHTML = '
+                    <div class="text-center text-red-600 p-4 bg-red-100 rounded-xl">
+                        <p class="font-bold">Error Initializing App</p>
+                        <p class="text-sm">Please check the console for details on Firebase setup.</p>
+                    </div>
+                ';
+            }
+        }
+
+        /**
+         * Sets up the real-time listener for the user's affirmation history.
+         */
+        function loadHistory() {
+            if (!db || !userId) return;
+
+            const userAffirmationsPath = `/artifacts/${appId}/users/${userId}/affirmations`;
+            const affirmationsRef = collection(db, userAffirmationsPath);
+            const q = query(affirmationsRef);
+
+            onSnapshot(q, (snapshot) => {
+                const newHistory = [];
+                const newFavorites = [];
+                snapshot.forEach((doc) => {
+                    const data = doc.data();
+                    const affirmation = { ...data, docId: doc.id };
+                    newHistory.push(affirmation);
+                    if (affirmation.is_favorite) {
+                        newFavorites.push(affirmation.seed_id);
+                    }
+                });
+
+                history = newHistory.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+                favorites = newFavorites;
+
+                console.log(`History Loaded. Total: ${history.length} | Favorites: ${favorites.length}`);
+
+                // Re-render History/Favorites if that view is active
+                const currentView = document.getElementById('content-area').dataset.view;
+                if (currentView === 'history' || currentView === 'favorites') {
+                    renderHistory(currentView);
+                }
+
+                // If on the affirmation card and the save status changed, re-render the card slightly
+                if (currentView === 'card' && currentAffirmation) {
+                    renderAffirmationCard(currentAffirmation.mood, false); // No need to generate new if on card
+                }
+            }, (error) => {
+                console.error("Error fetching history:", error);
+            });
+        }
+
+        /**
+         * Selects a unique affirmation based on mood and history.
+         * @param {string} mood - The user's current mood.
+         * @returns {object|null} The selected affirmation object or null if none are available.
+         */
+        function generateAffirmation(mood) {
+            // 1. Identify all affirmations already shown to the user (by seed_id)
+            const usedSeedIds = history.map(h => h.seed_id);
+            
+            // 2. Filter available candidates based on mood and non-repetition
+            const candidates = SEED_AFFIRMATIONS.filter(seed => 
+                seed.mood === mood && !usedSeedIds.includes(seed.id)
+            );
+
+            // 3. Simple weighted selection (prioritize favorites categories)
+            if (candidates.length > 0) {
+                // Determine favorite categories
+                const favoriteCategories = history
+                    .filter(h => h.is_favorite)
+                    .map(h => h.category);
+
+                let selectedCandidate;
+
+                // Attempt to select a candidate whose category is a favorite, if available
+                const preferredCandidates = candidates.filter(c => favoriteCategories.includes(c.category));
+                
+                if (preferredCandidates.length > 0) {
+                    // Randomly pick from preferred candidates
+                    selectedCandidate = preferredCandidates[Math.floor(Math.random() * preferredCandidates.length)];
+                } else {
+                    // Randomly pick from all unique, mood-matched candidates
+                    selectedCandidate = candidates[Math.floor(Math.random() * candidates.length)];
+                }
+
+                // Prepare the affirmation object for display/storage
+                const newAffirmation = {
+                    seed_id: selectedCandidate.id,
+                    mood: selectedCandidate.mood,
+                    text: selectedCandidate.text,
+                    category: selectedCandidate.category,
+                    is_favorite: false, // Default to false
+                    docId: crypto.randomUUID(), // New document ID
+                };
+
+                // Immediately log the generated affirmation to history
+                logAffirmation(newAffirmation, 'Generated');
+
+                return newAffirmation;
+            } else {
+                // 4. Handle repetition risk (fallback logic)
+                currentAffirmation = null;
+                console.warn("All unique affirmations for this mood have been used. Showing a random previous one as fallback.");
+
+                // If all are used, return a random one from history for the same mood
+                const fallbackHistory = history.filter(h => h.mood === mood);
+                if (fallbackHistory.length > 0) {
+                     return fallbackHistory[Math.floor(Math.random() * fallbackHistory.length)];
+                }
+            }
+
+            return null;
+        }
+
+        /**
+         * Logs the affirmation event to Firestore.
+         * @param {object} aff - The affirmation object.
+         * @param {string} action - 'Generated', 'Reroll', or 'Save'.
+         */
+        async function logAffirmation(aff, action) {
+            if (!db || !userId) return;
+
+            // Use the docId from the currentAffirmation state for updates
+            const docPath = `/artifacts/${appId}/users/${userId}/affirmations/${aff.docId}`;
+            const docRef = doc(db, docPath);
+
+            const data = {
+                seed_id: aff.seed_id,
+                mood: aff.mood,
+                text_content: aff.text,
+                category: aff.category,
+                timestamp: serverTimestamp(),
+                user_action: action,
+                is_favorite: aff.is_favorite || (action === 'Save'),
+                // Only log the full content the first time it is generated
+                ...(action === 'Generated' && { first_generated_at: serverTimestamp() })
+            };
+
+            try {
+                // Use setDoc with merge: true to avoid overwriting all fields on updates (like 'Save')
+                await setDoc(docRef, data, { merge: true });
+                console.log(`Affirmation action '${action}' logged successfully for ID: ${aff.seed_id}`);
+            } catch (error) {
+                console.error("Error logging affirmation to Firestore:", error);
+            }
+        }
+
+        // --- SESSION STACK LOGIC ---
+        
+        /**
+         * Manages the session stack for back/next functionality.
+         * @param {object} aff - The new affirmation to push.
+         */
+        function pushToStack(aff) {
+            // If the user clicks Next/Generate after clicking Back, trim the forward history
+            if (stackIndex < sessionStack.length - 1) {
+                sessionStack.splice(stackIndex + 1);
+            }
+            sessionStack.push(aff);
+            stackIndex = sessionStack.length - 1;
+            // Keep stack size manageable (e.g., last 10)
+            if (sessionStack.length > 10) {
+                sessionStack.shift();
+                stackIndex--;
+            }
+        }
+
+        /**
+         * Moves the stack index.
+         * @param {number} delta - 1 for next, -1 for back.
+         */
+        window.navigateStack = function(delta) {
+            const newIndex = stackIndex + delta;
+            if (newIndex >= 0 && newIndex < sessionStack.length) {
+                stackIndex = newIndex;
+                const aff = sessionStack[stackIndex];
+                renderAffirmationCard(aff.mood, false); // Render from stack, do not generate new
+            } else if (delta > 0 && newIndex === sessionStack.length) {
+                // If trying to move next from the end, generate a new one
+                handleGenerateNext(sessionStack[stackIndex].mood);
+            }
+        }
+
+
+        // --- SHARING UTILITIES ---
+
+        /**
+         * Displays a temporary, floating notification.
+         * @param {string} message - The message to display.
+         * @param {string} type - Optional type ('success', 'error', 'info').
+         */
+        let toastTimeout;
+        window.showToast = function(message, type = 'success') {
+            clearTimeout(toastTimeout);
+            const toast = document.getElementById('toast-notification');
+
+            // Reset classes
+            toast.className = 'fixed bottom-4 left-1/2 -translate-x-1/2 p-3 rounded-xl shadow-xl z-50 text-sm font-medium transition-all';
+            
+            // Set message and type-specific colors
+            toast.textContent = message;
+            if (type === 'success') {
+                toast.classList.add('bg-green-500', 'text-white');
+            } else if (type === 'error') {
+                toast.classList.add('bg-red-500', 'text-white');
+            } else {
+                toast.classList.add('bg-blue-500', 'text-white');
+            }
+
+            // Show the toast with transition
+            toast.style.display = 'block';
+            setTimeout(() => {
+                toast.classList.add('toast-enter-active');
+            }, 10); 
+
+            // Hide the toast after 3 seconds
+            toastTimeout = setTimeout(() => {
+                toast.classList.remove('toast-enter-active');
+                toast.classList.add('toast-exit-active');
+                setTimeout(() => {
+                    toast.style.display = 'none';
+                    toast.classList.remove('toast-exit-active');
+                }, 300);
+            }, 3000);
+        }
+
+        /**
+         * Handles copying text to clipboard.
+         * @param {string} textToCopy - The text to be copied.
+         * @param {HTMLElement} buttonEl - The button element (optional, used to prevent double-firing).
+         */
+        window.copyToClipboard = function(textToCopy) {
+            try {
+                // Use document.execCommand('copy') for better iframe compatibility
+                const textarea = document.createElement('textarea');
+                textarea.value = textToCopy;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+
+                showToast('Affirmation copied to clipboard!');
+                
+                // Close the modal immediately after copying, as this is the user's manual action.
+                closeShareModal(); 
+
+            } catch (err) {
+                console.error('Could not copy text: ', err);
+                showToast('Copy failed. Please select text manually.', 'error');
+            }
+        }
+        
+        /**
+         * Attempts to open the user's native SMS application.
+         * @param {string} fullText - The full text to include in the message body.
+         */
+        window.handleSmsShare = function(fullText) {
+            console.log("Attempting to launch SMS application...");
+            window.location.href = `sms:?body=${encodeURIComponent(fullText)}`;
+            closeShareModal();
+        }
+
+        /**
+         * Attempts to open the user's native Email application.
+         * @param {string} fullText - The full text to include in the email body.
+         */
+        window.handleEmailShare = function(fullText) {
+            console.log("Attempting to launch Email application...");
+            const subject = encodeURIComponent('A Medi Mindful Moment for You');
+            const body = encodeURIComponent(fullText);
+            window.location.href = `mailto:?subject=${subject}&body=${body}`;
+            closeShareModal();
+        }
+
+
+        /**
+         * Renders the share options modal.
+         */
+        window.renderShareModal = function(affirmationText) {
+            const appTag = " - Medi Mindful Moment App";
+            const fullText = `"${affirmationText}"${appTag}`;
+            currentShareText = fullText;
+
+            const modal = document.getElementById('share-modal');
+            const content = document.getElementById('share-content-text');
+            const buttonsContainer = document.getElementById('share-buttons-container');
+            const modalContent = document.getElementById('modal-content');
+
+            content.textContent = fullText;
+            buttonsContainer.innerHTML = '
+                <button id="copy-btn-modal" onclick="copyToClipboard(currentShareText)" 
+                        class="w-full py-3 rounded-xl bg-[#104E9E] text-white font-semibold shadow-md hover:bg-blue-600 transition-colors active:scale-[.98]">
+                    Copy to Clipboard
+                </button>
+
+                <!-- SMS Button - Now calling JS function -->
+                <button onclick="handleSmsShare(currentShareText)"
+                        class="native-share-btn w-full flex items-center justify-center py-3 rounded-xl bg-gray-200 text-gray-700 font-semibold shadow-md hover:bg-gray-300 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 mr-2">
+                        <path fill-rule="evenodd" d="M1.5 6a2.25 2.25 0 0 1 2.25-2.25h16.5A2.25 2.25 0 0 1 22.5 6v12a2.25 2.25 0 0 1-2.25 2.25H3.75A2.25 2.25 0 0 1 1.5 18V6ZM3 16.03V6a.75.75 0 0 1 .75-.75h16.5a.75.75 0 0 1 .75.75v10.03c0 .28-.11.55-.31.75l-1.5 1.5a1.125 1.125 0 0 1-1.442.164L12 17.5l-6.198 2.445a1.125 1.125 0 0 1-1.44-.164l-1.5-1.5a1.125 1.125 0 0 1-.31-.75Z" clip-rule="evenodd" />
+                    </svg>
+                    Share via Text (SMS)
+                </button>
+
+                <!-- Email Button - Now calling JS function -->
+                <button onclick="handleEmailShare(currentShareText)"
+                        class="native-share-btn w-full flex items-center justify-center py-3 rounded-xl bg-gray-200 text-gray-700 font-semibold shadow-md hover:bg-gray-300 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 mr-2">
+                        <path d="M1.5 8.67v8.58a3 3 0 0 0 3 3h15a3 3 0 0 0 3-3V8.67l-8.682 5.327a3 3 0 0 1-3.236 0L1.5 8.67Z" />
+                        <path d="M22.5 6A2.25 2.25 0 0 0 20.25 3.75H3.75A2.25 2.25 0 0 0 1.5 6v.443c.895-.31 1.838-.502 2.793-.524A3.001 3.001 0 0 1 6.545 5.378l2.613 2.158 2.001-2.002a.75.75 0 0 1 1.06 0l2.002 2.002 2.613-2.158A3.001 3.001 0 0 1 22.5 6.443V6Z" />
+                    </svg>
+                    Share via Email
+                </button>
+            ';
+
+            // Display modal with animation
+            modal.style.display = 'flex';
+            setTimeout(() => {
+                modal.classList.add('opacity-100');
+                modalContent.classList.replace('scale-90', 'scale-100');
+            }, 10);
+        }
+
+        /**
+         * Closes the share options modal.
+         */
+        window.closeShareModal = function() {
+            const modal = document.getElementById('share-modal');
+            const modalContent = document.getElementById('modal-content');
+
+            // Hide modal with animation
+            modal.classList.remove('opacity-100');
+            modalContent.classList.replace('scale-100', 'scale-90');
+            
+            setTimeout(() => {
+                modal.style.display = 'none';
+            }, 300);
+        }
+        
+        /**
+         * Helper function to share affirmation text from history/favorites list.
+         * @param {string} text - The affirmation text to share.
+         */
+        window.shareFromHistory = function(text) {
+            renderShareModal(text);
+        }
+
+        // --- UI RENDERING FUNCTIONS ---
+
+        /**
+         * Renders the Mood Selector screen.
+         */
+        window.renderMoodSelector = function() {
+            document.getElementById('content-area').dataset.view = 'selector';
+            const moods = ['Anxious', 'Excited', 'Tired', 'Confident', 'Overwhelmed', 'Neutral'];
+            
+            document.getElementById('content-area').innerHTML = '
+                <h2 class="text-xl md:text-2xl font-bold text-gray-700 text-center mb-8">How are you feeling right now?</h2>
+                <div class="grid grid-cols-2 gap-4">
+                    ' + moods.map(mood => `
+                        <button onclick="handleGenerateNext('${mood}')" 
+                                class="mood-chip p-5 rounded-2xl shadow-lg text-lg font-semibold transition-all duration-200 
+                                       bg-blue-100 text-[#104E9E] hover:bg-blue-300 hover:shadow-xl active:scale-[.98] 
+                                       focus:outline-none focus:ring-4 focus:ring-blue-300">
+                            ${mood}
+                        </button>
+                    `).join('') + '
+                </div>
+            ';
+            // Reset stack index when starting a new mood/session
+            stackIndex = -1;
+            sessionStack.length = 0;
+            currentAffirmation = null;
+        }
+
+        /**
+         * Generates and pushes a new affirmation, then renders the card.
+         * This function replaces the Mood Selector's 'onclick' and the Reroll button logic.
+         * @param {string} mood - The mood used for generation.
+         */
+        window.handleGenerateNext = function(mood) {
+            const newAff = generateAffirmation(mood);
+            if (newAff) {
+                pushToStack(newAff);
+                renderAffirmationCard(mood, false);
+            } else {
+                // Handle content exhaustion
+                document.getElementById('content-area').innerHTML = '
+                    <div class="text-center p-6 rounded-xl bg-red-100 text-red-700">
+                        <p class="font-bold mb-2">Content Exhausted</p>
+                        <p>We\'ve run out of unique affirmations for your mood. Please try again tomorrow!</p>
+                        <button onclick="renderMoodSelector()" class="mt-4 text-red-500 font-medium">Go Back</button>
+                    </div>
+                ';
+            }
+        }
+
+        /**
+         * Renders the main Affirmation Card screen.
+         * @param {string} mood - The mood used for generation.
+         * @param {boolean} generateNew - If true, generates a new one. If false, renders from currentAffirmation or stack.
+         */
+        window.renderAffirmationCard = function(mood, generateNew = true) {
+            document.getElementById('content-area').dataset.view = 'card';
+            
+            if (generateNew) {
+                handleGenerateNext(mood);
+                return;
+            }
+            
+            // Render from current stack index
+            if (sessionStack.length > 0 && stackIndex >= 0) {
+                currentAffirmation = sessionStack[stackIndex];
+            } else if (history.length > 0) {
+                 // Fallback to latest global history if session stack is empty/not started
+                currentAffirmation = history[0];
+            } else {
+                 // Fallback if the session stack is empty and no history
+                currentAffirmation = null; 
+                renderMoodSelector(); // Go back to start if nothing to show
+                return;
+            }
+
+            const aff = currentAffirmation;
+            
+            // Check if the current seed ID is favorited in the global state
+            const isFav = favorites.includes(aff.seed_id);
+            // We need to use the actual document ID from history for saving actions
+            const existingEntry = history.find(h => h.seed_id === aff.seed_id);
+            aff.docId = existingEntry ? existingEntry.docId : currentAffirmation.docId;
+
+            // Determine button disabled states
+            const canGoBack = stackIndex > 0;
+            // Can go forward if index is not at the end of the stack
+            const canGoForward = stackIndex < sessionStack.length - 1;
+
+
+            document.getElementById('content-area').innerHTML = '
+                <div class="text-center">
+                    <h3 class="text-blue-500 mb-8 text-md uppercase tracking-widest font-semibold">Affirmation for feeling ${aff.mood}</h3>
+                    
+                    <!-- Affirmation Card -->
+                    <div class="bg-gradient-to-r from-blue-50 to-indigo-100 p-8 rounded-3xl shadow-2xl border-4 border-blue-200 transition-all duration-500">
+                        <p class="text-3xl md:text-4xl font-light text-gray-800 leading-snug italic">
+                            "${aff.text}"
+                        </p>
+                    </div>
+                    
+                    <!-- Actions -->
+                    <div class="flex items-center justify-center space-x-4 mt-10">
+                        
+                        <!-- Back Button (Undo/Previous) -->
+                        <button onclick="navigateStack(-1)"
+                                ${!canGoBack ? 'disabled' : ''}
+                                class="p-3 rounded-full transition-colors shadow-md active:scale-[.95] 
+                                       ${canGoBack ? 'bg-gray-200 text-gray-600 hover:bg-gray-300' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}"
+                                title="Back / Undo Last Reroll">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                                <path fill-rule="evenodd" d="M7.72 12.53a.75.75 0 0 1 0-1.06l7.5-7.5a.75.75 0 1 1 1.06 1.06L9.31 12l6.97 6.97a.75.75 0 1 1-1.06 1.06l-7.5-7.5Z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+
+                        <!-- Central Actions Group: Save/Share -->
+                        <div class="flex space-x-6">
+                            <!-- Save/Favorite Button -->
+                            <button id="save-btn" onclick="handleAction('Save', '${mood}')" 
+                                    class="p-4 rounded-full transition-colors shadow-lg active:scale-[.95] 
+                                        ${isFav ? 'bg-yellow-400 text-white hover:bg-yellow-500 shadow-yellow-300/50' : 'bg-[#104E9E] text-white hover:bg-blue-600 shadow-[#104E9E]/50'}"
+                                    title="Save/Unsave">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-7 h-7">
+                                    <path fill-rule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" clip-rule="evenodd" />
+                                </svg>
+                                <span class="sr-only">${isFav ? 'Unsave' : 'Save'}</span>
+                            </button>
+
+                            <!-- Share Button -->
+                            <button onclick="handleAction('Share', '${aff.mood}')"
+                                    class="p-4 rounded-full bg-gray-200 text-gray-600 hover:bg-gray-300 transition-colors shadow-md active:scale-[.95]"
+                                    title="Open Share Options">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-7 h-7">
+                                    <path fill-rule="evenodd" d="M15.75 4.5a3 3 0 1 1 .823 5.429L11.54 13.5H9.75a2.25 2.25 0 0 0-2.25 2.25v2.25a2.25 2.25 0 0 0 2.25 2.25H16.5a2.25 2.25 0 0 0 2.25-2.25v-2.25a2.25 2.25 0 0 0-2.25-2.25H14.26l4.986-3.693A3 3 0 0 1 15.75 4.5Z" clip-rule="evenodd" />
+                                </svg>
+                                <span class="sr-only">Share</span>
+                            </button>
+                        </div>
+
+                        <!-- Next/Reroll Button -->
+                        <button onclick="${canGoForward ? `navigateStack(1)` : `handleGenerateNext('${mood}')`}"
+                                class="p-3 rounded-full transition-colors shadow-md active:scale-[.95] 
+                                       bg-gray-200 text-gray-600 hover:bg-gray-300"
+                                title="${canGoForward ? 'Forward in Session History' : 'Generate New Affirmation'}">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                                <path fill-rule="evenodd" d="M16.28 12.53a.75.75 0 0 0 0-1.06l-7.5-7.5a.75.75 0 0 0-1.06 1.06L14.69 12l-6.97 6.97a.75.75 0 1 0 1.06 1.06l7.5-7.5Z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            ';
+        }
+
+        /**
+         * Renders the History or Favorites list.
+         * @param {string} view - 'history' or 'favorites'.
+         */
+        window.renderHistory = function(view) {
+            document.getElementById('content-area').dataset.view = view;
+            const isHistoryView = view === 'history';
+            const title = isHistoryView ? 'Your Affirmation History' : 'Your Favorites';
+            
+            let listData = isHistoryView ? history : history.filter(h => h.is_favorite);
+
+            if (!isHistoryView) {
+                // For Favorites view, only show the latest version of the text/favorite status
+                const uniqueFavoritesMap = new Map();
+                listData.forEach(item => {
+                    if (item.is_favorite) {
+                        // Use seed_id as key to ensure no duplicates in favorites list
+                        uniqueFavoritesMap.set(item.seed_id, item);
+                    }
+                });
+                listData = Array.from(uniqueFavoritesMap.values()).sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+            }
+
+
+            const contentHtml = `
+                <div class="mb-6">
+                    <!-- Segmented Control -->
+                    <div class="flex p-1 bg-gray-100 rounded-xl shadow-inner">
+                        <button onclick="renderHistory('history')" class="flex-1 py-2 text-sm font-bold rounded-lg transition-all ${isHistoryView ? 'bg-white shadow-md text-[#104E9E]' : 'text-gray-500 hover:text-blue-500'}">History</button>
+                        <button onclick="renderHistory('favorites')" class="flex-1 py-2 text-sm font-bold rounded-lg transition-all ${!isHistoryView ? 'bg-white shadow-md text-[#104E9E]' : 'text-gray-500 hover:text-blue-500'}">Favorites</button>
+                    </div>
+                </div>
+                
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">${title}</h2>
+                
+                <div class="space-y-3 max-h-96 overflow-y-auto pr-2 custom-scroll">
+                    ${listData.length > 0 ? listData.map(item => {
+                        const isFav = item.is_favorite;
+                        const date = item.timestamp ? new Date(item.timestamp.seconds * 1000).toLocaleDateString() : 'N/A';
+                        
+                        return `
+                            <div class="p-4 bg-white border border-gray-200 rounded-xl shadow-md flex items-center space-x-3 hover:bg-gray-50 transition-colors">
+                                
+                                <!-- Favorite Toggle -->
+                                <button onclick="toggleFavorite('${item.docId}', ${!isFav})" title="${isFav ? 'Remove from Favorites' : 'Add to Favorites'}"
+                                        class="p-2 flex-shrink-0 rounded-full transition-colors 
+                                               ${isFav ? 'bg-yellow-400 text-white hover:bg-yellow-500' : 'bg-gray-200 text-gray-500 hover:bg-gray-300'}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+                                        <path fill-rule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" clip-rule="evenodd" />
+                                    </svg>
+                                    <span class="sr-only">${isFav ? 'Remove from Favorites' : 'Add to Favorites'}</span>
+                                </button>
+                                
+                                <div class="flex-grow">
+                                    <p class="text-base font-medium text-gray-800 italic">"${item.text_content}"</p>
+                                    <div class="flex items-center space-x-2 mt-1 text-xs text-gray-500">
+                                        <span class="bg-blue-200 text-[#104E9E] px-2 py-0.5 rounded-full font-semibold">${item.mood}</span>
+                                        <span class="text-gray-400">•</span>
+                                        <span>${date}</span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Share Button -->
+                                <button onclick="shareFromHistory(\"${item.text_content}\")" title="Share this affirmation"
+                                        class="p-2 flex-shrink-0 rounded-full transition-colors bg-gray-200 text-gray-500 hover:bg-gray-300 hover:text-[#104E9E]">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+                                        <path fill-rule="evenodd" d="M15.75 4.5a3 3 0 1 1 .823 5.429L11.54 13.5H9.75a2.25 2.25 0 0 0-2.25 2.25v2.25a2.25 2.25 0 0 0 2.25 2.25H16.5a2.25 2.25 0 0 0 2.25-2.25v-2.25a2.25 2.25 0 0 0-2.25-2.25H14.26l4.986-3.693A3 3 0 0 1 15.75 4.5Z" clip-rule="evenodd" />
+                                    </svg>
+                                </button>
+                            </div>
+                        `;
+                    }).join('') : `
+                        <div class="text-center text-gray-500 p-8 bg-gray-50 rounded-xl">
+                            <p class="mb-2">${isHistoryView ? 'No affirmations recorded yet.' : 'Your favorites list is empty!'}</p>
+                            <button onclick="renderMoodSelector()" class="text-blue-500 font-bold hover:underline">Start now</button>
+                        </div>
+                    `}
+                </div>
+            `;
+            document.getElementById('content-area').innerHTML = contentHtml;
+        }
+
+        /**
+         * Main handler for user actions (Reroll, Save, Share).
+         * @param {string} action - 'Reroll' (No longer used directly), 'Save', or 'Share'.
+         * @param {string} mood - The current mood context.
+         */
+        window.handleAction = async function(action, mood) {
+            const aff = currentAffirmation;
+            if (!aff) return;
+
+            switch (action) {
+                case 'Save':
+                    // Find the actual history entry using the document ID
+                    const existingEntry = history.find(h => h.docId === aff.docId);
+                    
+                    // Determine new favorite state (toggle) 
+                    const newFavState = existingEntry ? !existingEntry.is_favorite : true; 
+
+                    // Update the affirmation state and log the change
+                    aff.is_favorite = newFavState;
+
+                    // Log the 'Save' action and update the favorite status in Firestore
+                    const docPath = `/artifacts/${appId}/users/${userId}/affirmations/${aff.docId}`;
+                    const docRef = doc(db, docPath);
+
+                    try {
+                         await setDoc(docRef, { is_favorite: newFavState, user_action: 'Save/Unsave' }, { merge: true });
+                         console.log(`Favorite status updated to ${newFavState}`);
+                         // The onSnapshot listener will re-render the card/list automatically
+                    } catch (error) {
+                         console.error("Error toggling favorite:", error);
+                    }
+                    
+                    break;
+                case 'Share':
+                    renderShareModal(aff.text);
+                    break;
+            }
+        }
+
+        /**
+         * Toggles the favorite status directly from the history/favorites view.
+         * @param {string} docId - The Firestore document ID.
+         * @param {boolean} newFavState - The state to set.
+         */
+        window.toggleFavorite = async function(docId, newFavState) {
+             if (!db || !userId) return;
+
+             const docPath = `/artifacts/${appId}/users/${userId}/affirmations/${docId}`;
+             const docRef = doc(db, docPath);
+
+             try {
+                await setDoc(docRef, { is_favorite: newFavState, user_action: 'List Toggle' }, { merge: true });
+                console.log(`Favorite status updated for docId ${docId} to ${newFavState}`);
+                // onSnapshot handles the UI update
+             } catch (error) {
+                console.error("Error toggling favorite from list:", error);
+             }
+        }
+
+        // Initialize the application on load
+        initializeAppAndAuth();
+    </script>
+</body>
+</html>
