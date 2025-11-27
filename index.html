@@ -114,28 +114,18 @@
         <!-- Message will be inserted here -->
     </div>
 
-
-    <!-- Firebase Imports -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, query, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Set log level to debug for development
-        setLogLevel('debug');
-
-        // --- GLOBAL STATE & FIREBASE SETUP ---
-        let db;
-        let auth;
-        let userId = null;
+    <!-- LocalStorage Logic (Replaces Firebase) -->
+    <script>
+        // --- GLOBAL STATE ---
         let history = []; 
         let favorites = []; 
         let currentAffirmation = null;
-        let currentShareText = ""; // Global state for the text to be shared
+        let currentShareText = "";
+        const STORAGE_KEY = 'medi_mindful_history';
 
-        // Session Stack for Back/Next/Undo functionality (Local to the session)
+        // Session Stack for Back/Next/Undo functionality
         const sessionStack = [];
-        let stackIndex = -1; // -1 means no affirmation is currently displayed
+        let stackIndex = -1;
 
         // Function to set the current date
         function setCurrentDate() {
@@ -145,7 +135,6 @@
                 dateElement.textContent = new Date().toLocaleDateString('en-US', options);
             }
         }
-        setCurrentDate(); // Call on load
 
         const SEED_AFFIRMATIONS = [
             { id: 'a01', mood: 'Anxious', text: 'My breath creates a space of calm, separating me from the rushing thoughts.', category: 'Grounding' },
@@ -180,100 +169,73 @@
             { id: 'f05', mood: 'Neutral', text: 'I trust the rhythm of the day and choose the pace that feels most true to my needs.', category: 'Empowerment' }
         ];
 
-        // Ensure __app_id and __firebase_config are defined globally by Canvas
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-
         /**
-         * Initializes Firebase and authenticates the user.
+         * Initializes the app using LocalStorage.
          */
-        async function initializeAppAndAuth() {
+        function initializeApp() {
             try {
-                if (!firebaseConfig || Object.keys(firebaseConfig).length === 0) {
-                    throw new Error("Firebase configuration not found.");
-                }
-                const app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-
                 const authStatusEl = document.getElementById('auth-status');
-
-                // Wait for auth state to be resolved
-                await new Promise(resolve => {
-                    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-                        if (!user) {
-                            const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                            if (initialAuthToken) {
-                                await signInWithCustomToken(auth, initialAuthToken);
-                            } else {
-                                await signInAnonymously(auth);
-                            }
-                        }
-                        // User is now signed in (custom or anonymous)
-                        userId = auth.currentUser?.uid || crypto.randomUUID();
-                        
-                        // Hide User ID
-                        authStatusEl.textContent = 'Data service connected.'; 
-                        unsubscribe();
-                        resolve();
-                    });
-                });
-
+                authStatusEl.textContent = 'Ready'; // No real auth needed
+                
+                setCurrentDate();
                 loadHistory();
+                
                 document.getElementById('nav-bar').style.display = 'flex';
                 renderMoodSelector();
-
             } catch (error) {
-                console.error("Error during Firebase initialization or authentication:", error);
-                document.getElementById('content-area').innerHTML = '
+                console.error("Error during initialization:", error);
+                document.getElementById('content-area').innerHTML = `
                     <div class="text-center text-red-600 p-4 bg-red-100 rounded-xl">
                         <p class="font-bold">Error Initializing App</p>
-                        <p class="text-sm">Please check the console for details on Firebase setup.</p>
+                        <p class="text-sm">${error.message}</p>
                     </div>
-                ';
+                `;
             }
         }
 
         /**
-         * Sets up the real-time listener for the user's affirmation history.
+         * Loads history from LocalStorage.
          */
         function loadHistory() {
-            if (!db || !userId) return;
+            try {
+                const storedData = localStorage.getItem(STORAGE_KEY);
+                if (storedData) {
+                    history = JSON.parse(storedData);
+                } else {
+                    history = [];
+                }
 
-            const userAffirmationsPath = `/artifacts/${appId}/users/${userId}/affirmations`;
-            const affirmationsRef = collection(db, userAffirmationsPath);
-            const q = query(affirmationsRef);
+                // Rebuild favorites list
+                favorites = history
+                    .filter(item => item.is_favorite)
+                    .map(item => item.seed_id);
 
-            onSnapshot(q, (snapshot) => {
-                const newHistory = [];
-                const newFavorites = [];
-                snapshot.forEach((doc) => {
-                    const data = doc.data();
-                    const affirmation = { ...data, docId: doc.id };
-                    newHistory.push(affirmation);
-                    if (affirmation.is_favorite) {
-                        newFavorites.push(affirmation.seed_id);
-                    }
-                });
-
-                history = newHistory.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
-                favorites = newFavorites;
+                // Sort by timestamp descending (newest first)
+                history.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
                 console.log(`History Loaded. Total: ${history.length} | Favorites: ${favorites.length}`);
 
-                // Re-render History/Favorites if that view is active
+                // Refresh views if active
                 const currentView = document.getElementById('content-area').dataset.view;
                 if (currentView === 'history' || currentView === 'favorites') {
                     renderHistory(currentView);
                 }
+            } catch (e) {
+                console.error("Failed to load history from LocalStorage", e);
+            }
+        }
 
-                // If on the affirmation card and the save status changed, re-render the card slightly
-                if (currentView === 'card' && currentAffirmation) {
-                    renderAffirmationCard(currentAffirmation.mood, false); // No need to generate new if on card
-                }
-            }, (error) => {
-                console.error("Error fetching history:", error);
-            });
+        /**
+         * Saves the current history array to LocalStorage.
+         */
+        function persistHistory() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+                loadHistory(); // Reload to update state/UI
+            } catch (e) {
+                console.error("Failed to save to LocalStorage", e);
+                showToast("Failed to save data locally.", "error");
+            }
         }
 
         /**
@@ -316,11 +278,12 @@
                     mood: selectedCandidate.mood,
                     text: selectedCandidate.text,
                     category: selectedCandidate.category,
-                    is_favorite: false, // Default to false
-                    docId: crypto.randomUUID(), // New document ID
+                    is_favorite: false,
+                    docId: crypto.randomUUID(), // Use UUID for unique tracking
+                    timestamp: new Date().toISOString() // ISO string for LocalStorage serialization
                 };
 
-                // Immediately log the generated affirmation to history
+                // Immediately log to history
                 logAffirmation(newAffirmation, 'Generated');
 
                 return newAffirmation;
@@ -340,35 +303,19 @@
         }
 
         /**
-         * Logs the affirmation event to Firestore.
+         * Logs the affirmation event to LocalStorage.
          * @param {object} aff - The affirmation object.
          * @param {string} action - 'Generated', 'Reroll', or 'Save'.
          */
-        async function logAffirmation(aff, action) {
-            if (!db || !userId) return;
-
-            // Use the docId from the currentAffirmation state for updates
-            const docPath = `/artifacts/${appId}/users/${userId}/affirmations/${aff.docId}`;
-            const docRef = doc(db, docPath);
-
-            const data = {
-                seed_id: aff.seed_id,
-                mood: aff.mood,
-                text_content: aff.text,
-                category: aff.category,
-                timestamp: serverTimestamp(),
-                user_action: action,
-                is_favorite: aff.is_favorite || (action === 'Save'),
-                // Only log the full content the first time it is generated
-                ...(action === 'Generated' && { first_generated_at: serverTimestamp() })
-            };
-
-            try {
-                // Use setDoc with merge: true to avoid overwriting all fields on updates (like 'Save')
-                await setDoc(docRef, data, { merge: true });
-                console.log(`Affirmation action '${action}' logged successfully for ID: ${aff.seed_id}`);
-            } catch (error) {
-                console.error("Error logging affirmation to Firestore:", error);
+        function logAffirmation(aff, action) {
+            // If it's a new generation, push to history
+            if (action === 'Generated') {
+                // Ensure we don't duplicate if called multiple times for same docId
+                const exists = history.find(h => h.docId === aff.docId);
+                if (!exists) {
+                    history.unshift(aff); // Add to beginning
+                    persistHistory();
+                }
             }
         }
 
@@ -385,7 +332,7 @@
             }
             sessionStack.push(aff);
             stackIndex = sessionStack.length - 1;
-            // Keep stack size manageable (e.g., last 10)
+            // Keep stack size manageable
             if (sessionStack.length > 10) {
                 sessionStack.shift();
                 stackIndex--;
@@ -458,7 +405,6 @@
          */
         window.copyToClipboard = function(textToCopy) {
             try {
-                // Use document.execCommand('copy') for better iframe compatibility
                 const textarea = document.createElement('textarea');
                 textarea.value = textToCopy;
                 document.body.appendChild(textarea);
@@ -467,8 +413,6 @@
                 document.body.removeChild(textarea);
 
                 showToast('Affirmation copied to clipboard!');
-                
-                // Close the modal immediately after copying, as this is the user's manual action.
                 closeShareModal(); 
 
             } catch (err) {
@@ -477,32 +421,18 @@
             }
         }
         
-        /**
-         * Attempts to open the user's native SMS application.
-         * @param {string} fullText - The full text to include in the message body.
-         */
         window.handleSmsShare = function(fullText) {
-            console.log("Attempting to launch SMS application...");
             window.location.href = `sms:?body=${encodeURIComponent(fullText)}`;
             closeShareModal();
         }
 
-        /**
-         * Attempts to open the user's native Email application.
-         * @param {string} fullText - The full text to include in the email body.
-         */
         window.handleEmailShare = function(fullText) {
-            console.log("Attempting to launch Email application...");
             const subject = encodeURIComponent('A Medi Mindful Moment for You');
             const body = encodeURIComponent(fullText);
             window.location.href = `mailto:?subject=${subject}&body=${body}`;
             closeShareModal();
         }
 
-
-        /**
-         * Renders the share options modal.
-         */
         window.renderShareModal = function(affirmationText) {
             const appTag = " - Medi Mindful Moment App";
             const fullText = `"${affirmationText}"${appTag}`;
@@ -514,33 +444,21 @@
             const modalContent = document.getElementById('modal-content');
 
             content.textContent = fullText;
-            buttonsContainer.innerHTML = '
+            buttonsContainer.innerHTML = `
                 <button id="copy-btn-modal" onclick="copyToClipboard(currentShareText)" 
                         class="w-full py-3 rounded-xl bg-[#104E9E] text-white font-semibold shadow-md hover:bg-blue-600 transition-colors active:scale-[.98]">
                     Copy to Clipboard
                 </button>
-
-                <!-- SMS Button - Now calling JS function -->
                 <button onclick="handleSmsShare(currentShareText)"
                         class="native-share-btn w-full flex items-center justify-center py-3 rounded-xl bg-gray-200 text-gray-700 font-semibold shadow-md hover:bg-gray-300 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 mr-2">
-                        <path fill-rule="evenodd" d="M1.5 6a2.25 2.25 0 0 1 2.25-2.25h16.5A2.25 2.25 0 0 1 22.5 6v12a2.25 2.25 0 0 1-2.25 2.25H3.75A2.25 2.25 0 0 1 1.5 18V6ZM3 16.03V6a.75.75 0 0 1 .75-.75h16.5a.75.75 0 0 1 .75.75v10.03c0 .28-.11.55-.31.75l-1.5 1.5a1.125 1.125 0 0 1-1.442.164L12 17.5l-6.198 2.445a1.125 1.125 0 0 1-1.44-.164l-1.5-1.5a1.125 1.125 0 0 1-.31-.75Z" clip-rule="evenodd" />
-                    </svg>
                     Share via Text (SMS)
                 </button>
-
-                <!-- Email Button - Now calling JS function -->
                 <button onclick="handleEmailShare(currentShareText)"
                         class="native-share-btn w-full flex items-center justify-center py-3 rounded-xl bg-gray-200 text-gray-700 font-semibold shadow-md hover:bg-gray-300 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 mr-2">
-                        <path d="M1.5 8.67v8.58a3 3 0 0 0 3 3h15a3 3 0 0 0 3-3V8.67l-8.682 5.327a3 3 0 0 1-3.236 0L1.5 8.67Z" />
-                        <path d="M22.5 6A2.25 2.25 0 0 0 20.25 3.75H3.75A2.25 2.25 0 0 0 1.5 6v.443c.895-.31 1.838-.502 2.793-.524A3.001 3.001 0 0 1 6.545 5.378l2.613 2.158 2.001-2.002a.75.75 0 0 1 1.06 0l2.002 2.002 2.613-2.158A3.001 3.001 0 0 1 22.5 6.443V6Z" />
-                    </svg>
                     Share via Email
                 </button>
-            ';
+            `;
 
-            // Display modal with animation
             modal.style.display = 'flex';
             setTimeout(() => {
                 modal.classList.add('opacity-100');
@@ -548,85 +466,60 @@
             }, 10);
         }
 
-        /**
-         * Closes the share options modal.
-         */
         window.closeShareModal = function() {
             const modal = document.getElementById('share-modal');
             const modalContent = document.getElementById('modal-content');
-
-            // Hide modal with animation
             modal.classList.remove('opacity-100');
             modalContent.classList.replace('scale-100', 'scale-90');
-            
             setTimeout(() => {
                 modal.style.display = 'none';
             }, 300);
         }
         
-        /**
-         * Helper function to share affirmation text from history/favorites list.
-         * @param {string} text - The affirmation text to share.
-         */
         window.shareFromHistory = function(text) {
             renderShareModal(text);
         }
 
         // --- UI RENDERING FUNCTIONS ---
 
-        /**
-         * Renders the Mood Selector screen.
-         */
         window.renderMoodSelector = function() {
             document.getElementById('content-area').dataset.view = 'selector';
             const moods = ['Anxious', 'Excited', 'Tired', 'Confident', 'Overwhelmed', 'Neutral'];
             
-            document.getElementById('content-area').innerHTML = '
+            document.getElementById('content-area').innerHTML = `
                 <h2 class="text-xl md:text-2xl font-bold text-gray-700 text-center mb-8">How are you feeling right now?</h2>
                 <div class="grid grid-cols-2 gap-4">
-                    ' + moods.map(mood => `
+                    ${moods.map(mood => `
                         <button onclick="handleGenerateNext('${mood}')" 
                                 class="mood-chip p-5 rounded-2xl shadow-lg text-lg font-semibold transition-all duration-200 
                                        bg-blue-100 text-[#104E9E] hover:bg-blue-300 hover:shadow-xl active:scale-[.98] 
                                        focus:outline-none focus:ring-4 focus:ring-blue-300">
                             ${mood}
                         </button>
-                    `).join('') + '
+                    `).join('')}
                 </div>
-            ';
-            // Reset stack index when starting a new mood/session
+            `;
             stackIndex = -1;
             sessionStack.length = 0;
             currentAffirmation = null;
         }
 
-        /**
-         * Generates and pushes a new affirmation, then renders the card.
-         * This function replaces the Mood Selector's 'onclick' and the Reroll button logic.
-         * @param {string} mood - The mood used for generation.
-         */
         window.handleGenerateNext = function(mood) {
             const newAff = generateAffirmation(mood);
             if (newAff) {
                 pushToStack(newAff);
                 renderAffirmationCard(mood, false);
             } else {
-                // Handle content exhaustion
-                document.getElementById('content-area').innerHTML = '
+                document.getElementById('content-area').innerHTML = `
                     <div class="text-center p-6 rounded-xl bg-red-100 text-red-700">
                         <p class="font-bold mb-2">Content Exhausted</p>
-                        <p>We\'ve run out of unique affirmations for your mood. Please try again tomorrow!</p>
+                        <p>We've run out of unique affirmations for your mood. Please try again tomorrow!</p>
                         <button onclick="renderMoodSelector()" class="mt-4 text-red-500 font-medium">Go Back</button>
                     </div>
-                ';
+                `;
             }
         }
 
-        /**
-         * Renders the main Affirmation Card screen.
-         * @param {string} mood - The mood used for generation.
-         * @param {boolean} generateNew - If true, generates a new one. If false, renders from currentAffirmation or stack.
-         */
         window.renderAffirmationCard = function(mood, generateNew = true) {
             document.getElementById('content-area').dataset.view = 'card';
             
@@ -635,100 +528,66 @@
                 return;
             }
             
-            // Render from current stack index
             if (sessionStack.length > 0 && stackIndex >= 0) {
                 currentAffirmation = sessionStack[stackIndex];
             } else if (history.length > 0) {
-                 // Fallback to latest global history if session stack is empty/not started
                 currentAffirmation = history[0];
             } else {
-                 // Fallback if the session stack is empty and no history
                 currentAffirmation = null; 
-                renderMoodSelector(); // Go back to start if nothing to show
+                renderMoodSelector();
                 return;
             }
 
             const aff = currentAffirmation;
-            
-            // Check if the current seed ID is favorited in the global state
             const isFav = favorites.includes(aff.seed_id);
-            // We need to use the actual document ID from history for saving actions
+            
+            // Sync docId with history if it exists there
             const existingEntry = history.find(h => h.seed_id === aff.seed_id);
-            aff.docId = existingEntry ? existingEntry.docId : currentAffirmation.docId;
+            if (existingEntry) aff.docId = existingEntry.docId;
 
-            // Determine button disabled states
             const canGoBack = stackIndex > 0;
-            // Can go forward if index is not at the end of the stack
             const canGoForward = stackIndex < sessionStack.length - 1;
 
-
-            document.getElementById('content-area').innerHTML = '
+            document.getElementById('content-area').innerHTML = `
                 <div class="text-center">
                     <h3 class="text-blue-500 mb-8 text-md uppercase tracking-widest font-semibold">Affirmation for feeling ${aff.mood}</h3>
-                    
-                    <!-- Affirmation Card -->
                     <div class="bg-gradient-to-r from-blue-50 to-indigo-100 p-8 rounded-3xl shadow-2xl border-4 border-blue-200 transition-all duration-500">
                         <p class="text-3xl md:text-4xl font-light text-gray-800 leading-snug italic">
                             "${aff.text}"
                         </p>
                     </div>
-                    
-                    <!-- Actions -->
                     <div class="flex items-center justify-center space-x-4 mt-10">
-                        
-                        <!-- Back Button (Undo/Previous) -->
-                        <button onclick="navigateStack(-1)"
-                                ${!canGoBack ? 'disabled' : ''}
-                                class="p-3 rounded-full transition-colors shadow-md active:scale-[.95] 
-                                       ${canGoBack ? 'bg-gray-200 text-gray-600 hover:bg-gray-300' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}"
-                                title="Back / Undo Last Reroll">
+                        <button onclick="navigateStack(-1)" ${!canGoBack ? 'disabled' : ''}
+                                class="p-3 rounded-full transition-colors shadow-md active:scale-[.95] ${canGoBack ? 'bg-gray-200 text-gray-600 hover:bg-gray-300' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
                                 <path fill-rule="evenodd" d="M7.72 12.53a.75.75 0 0 1 0-1.06l7.5-7.5a.75.75 0 1 1 1.06 1.06L9.31 12l6.97 6.97a.75.75 0 1 1-1.06 1.06l-7.5-7.5Z" clip-rule="evenodd" />
                             </svg>
                         </button>
-
-                        <!-- Central Actions Group: Save/Share -->
                         <div class="flex space-x-6">
-                            <!-- Save/Favorite Button -->
                             <button id="save-btn" onclick="handleAction('Save', '${mood}')" 
-                                    class="p-4 rounded-full transition-colors shadow-lg active:scale-[.95] 
-                                        ${isFav ? 'bg-yellow-400 text-white hover:bg-yellow-500 shadow-yellow-300/50' : 'bg-[#104E9E] text-white hover:bg-blue-600 shadow-[#104E9E]/50'}"
-                                    title="Save/Unsave">
+                                    class="p-4 rounded-full transition-colors shadow-lg active:scale-[.95] ${isFav ? 'bg-yellow-400 text-white hover:bg-yellow-500 shadow-yellow-300/50' : 'bg-[#104E9E] text-white hover:bg-blue-600 shadow-[#104E9E]/50'}">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-7 h-7">
                                     <path fill-rule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" clip-rule="evenodd" />
                                 </svg>
-                                <span class="sr-only">${isFav ? 'Unsave' : 'Save'}</span>
                             </button>
-
-                            <!-- Share Button -->
                             <button onclick="handleAction('Share', '${aff.mood}')"
-                                    class="p-4 rounded-full bg-gray-200 text-gray-600 hover:bg-gray-300 transition-colors shadow-md active:scale-[.95]"
-                                    title="Open Share Options">
+                                    class="p-4 rounded-full bg-gray-200 text-gray-600 hover:bg-gray-300 transition-colors shadow-md active:scale-[.95]">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-7 h-7">
                                     <path fill-rule="evenodd" d="M15.75 4.5a3 3 0 1 1 .823 5.429L11.54 13.5H9.75a2.25 2.25 0 0 0-2.25 2.25v2.25a2.25 2.25 0 0 0 2.25 2.25H16.5a2.25 2.25 0 0 0 2.25-2.25v-2.25a2.25 2.25 0 0 0-2.25-2.25H14.26l4.986-3.693A3 3 0 0 1 15.75 4.5Z" clip-rule="evenodd" />
                                 </svg>
-                                <span class="sr-only">Share</span>
                             </button>
                         </div>
-
-                        <!-- Next/Reroll Button -->
                         <button onclick="${canGoForward ? `navigateStack(1)` : `handleGenerateNext('${mood}')`}"
-                                class="p-3 rounded-full transition-colors shadow-md active:scale-[.95] 
-                                       bg-gray-200 text-gray-600 hover:bg-gray-300"
-                                title="${canGoForward ? 'Forward in Session History' : 'Generate New Affirmation'}">
+                                class="p-3 rounded-full transition-colors shadow-md active:scale-[.95] bg-gray-200 text-gray-600 hover:bg-gray-300">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
                                 <path fill-rule="evenodd" d="M16.28 12.53a.75.75 0 0 0 0-1.06l-7.5-7.5a.75.75 0 0 0-1.06 1.06L14.69 12l-6.97 6.97a.75.75 0 1 0 1.06 1.06l7.5-7.5Z" clip-rule="evenodd" />
                             </svg>
                         </button>
                     </div>
                 </div>
-            ';
+            `;
         }
 
-        /**
-         * Renders the History or Favorites list.
-         * @param {string} view - 'history' or 'favorites'.
-         */
         window.renderHistory = function(view) {
             document.getElementById('content-area').dataset.view = view;
             const isHistoryView = view === 'history';
@@ -737,47 +596,35 @@
             let listData = isHistoryView ? history : history.filter(h => h.is_favorite);
 
             if (!isHistoryView) {
-                // For Favorites view, only show the latest version of the text/favorite status
                 const uniqueFavoritesMap = new Map();
                 listData.forEach(item => {
                     if (item.is_favorite) {
-                        // Use seed_id as key to ensure no duplicates in favorites list
                         uniqueFavoritesMap.set(item.seed_id, item);
                     }
                 });
-                listData = Array.from(uniqueFavoritesMap.values()).sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+                listData = Array.from(uniqueFavoritesMap.values()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
             }
-
 
             const contentHtml = `
                 <div class="mb-6">
-                    <!-- Segmented Control -->
                     <div class="flex p-1 bg-gray-100 rounded-xl shadow-inner">
                         <button onclick="renderHistory('history')" class="flex-1 py-2 text-sm font-bold rounded-lg transition-all ${isHistoryView ? 'bg-white shadow-md text-[#104E9E]' : 'text-gray-500 hover:text-blue-500'}">History</button>
                         <button onclick="renderHistory('favorites')" class="flex-1 py-2 text-sm font-bold rounded-lg transition-all ${!isHistoryView ? 'bg-white shadow-md text-[#104E9E]' : 'text-gray-500 hover:text-blue-500'}">Favorites</button>
                     </div>
                 </div>
-                
                 <h2 class="text-2xl font-bold text-gray-800 mb-4">${title}</h2>
-                
                 <div class="space-y-3 max-h-96 overflow-y-auto pr-2 custom-scroll">
                     ${listData.length > 0 ? listData.map(item => {
                         const isFav = item.is_favorite;
-                        const date = item.timestamp ? new Date(item.timestamp.seconds * 1000).toLocaleDateString() : 'N/A';
-                        
+                        const date = item.timestamp ? new Date(item.timestamp).toLocaleDateString() : 'N/A';
                         return `
                             <div class="p-4 bg-white border border-gray-200 rounded-xl shadow-md flex items-center space-x-3 hover:bg-gray-50 transition-colors">
-                                
-                                <!-- Favorite Toggle -->
-                                <button onclick="toggleFavorite('${item.docId}', ${!isFav})" title="${isFav ? 'Remove from Favorites' : 'Add to Favorites'}"
-                                        class="p-2 flex-shrink-0 rounded-full transition-colors 
-                                               ${isFav ? 'bg-yellow-400 text-white hover:bg-yellow-500' : 'bg-gray-200 text-gray-500 hover:bg-gray-300'}">
+                                <button onclick="toggleFavorite('${item.docId}', ${!isFav})" 
+                                        class="p-2 flex-shrink-0 rounded-full transition-colors ${isFav ? 'bg-yellow-400 text-white hover:bg-yellow-500' : 'bg-gray-200 text-gray-500 hover:bg-gray-300'}">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
                                         <path fill-rule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" clip-rule="evenodd" />
                                     </svg>
-                                    <span class="sr-only">${isFav ? 'Remove from Favorites' : 'Add to Favorites'}</span>
                                 </button>
-                                
                                 <div class="flex-grow">
                                     <p class="text-base font-medium text-gray-800 italic">"${item.text_content}"</p>
                                     <div class="flex items-center space-x-2 mt-1 text-xs text-gray-500">
@@ -786,9 +633,7 @@
                                         <span>${date}</span>
                                     </div>
                                 </div>
-                                
-                                <!-- Share Button -->
-                                <button onclick="shareFromHistory(\"${item.text_content}\")" title="Share this affirmation"
+                                <button onclick="shareFromHistory(\"${item.text_content}\")"
                                         class="p-2 flex-shrink-0 rounded-full transition-colors bg-gray-200 text-gray-500 hover:bg-gray-300 hover:text-[#104E9E]">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
                                         <path fill-rule="evenodd" d="M15.75 4.5a3 3 0 1 1 .823 5.429L11.54 13.5H9.75a2.25 2.25 0 0 0-2.25 2.25v2.25a2.25 2.25 0 0 0 2.25 2.25H16.5a2.25 2.25 0 0 0 2.25-2.25v-2.25a2.25 2.25 0 0 0-2.25-2.25H14.26l4.986-3.693A3 3 0 0 1 15.75 4.5Z" clip-rule="evenodd" />
@@ -807,38 +652,22 @@
             document.getElementById('content-area').innerHTML = contentHtml;
         }
 
-        /**
-         * Main handler for user actions (Reroll, Save, Share).
-         * @param {string} action - 'Reroll' (No longer used directly), 'Save', or 'Share'.
-         * @param {string} mood - The current mood context.
-         */
-        window.handleAction = async function(action, mood) {
+        window.handleAction = function(action, mood) {
             const aff = currentAffirmation;
             if (!aff) return;
 
             switch (action) {
                 case 'Save':
-                    // Find the actual history entry using the document ID
                     const existingEntry = history.find(h => h.docId === aff.docId);
+                    const newFavState = existingEntry ? !existingEntry.is_favorite : true;
                     
-                    // Determine new favorite state (toggle) 
-                    const newFavState = existingEntry ? !existingEntry.is_favorite : true; 
-
-                    // Update the affirmation state and log the change
-                    aff.is_favorite = newFavState;
-
-                    // Log the 'Save' action and update the favorite status in Firestore
-                    const docPath = `/artifacts/${appId}/users/${userId}/affirmations/${aff.docId}`;
-                    const docRef = doc(db, docPath);
-
-                    try {
-                         await setDoc(docRef, { is_favorite: newFavState, user_action: 'Save/Unsave' }, { merge: true });
-                         console.log(`Favorite status updated to ${newFavState}`);
-                         // The onSnapshot listener will re-render the card/list automatically
-                    } catch (error) {
-                         console.error("Error toggling favorite:", error);
+                    if (existingEntry) {
+                        existingEntry.is_favorite = newFavState;
                     }
+                    aff.is_favorite = newFavState;
                     
+                    persistHistory();
+                    renderAffirmationCard(mood, false); // Re-render to show updated button state
                     break;
                 case 'Share':
                     renderShareModal(aff.text);
@@ -846,28 +675,16 @@
             }
         }
 
-        /**
-         * Toggles the favorite status directly from the history/favorites view.
-         * @param {string} docId - The Firestore document ID.
-         * @param {boolean} newFavState - The state to set.
-         */
-        window.toggleFavorite = async function(docId, newFavState) {
-             if (!db || !userId) return;
-
-             const docPath = `/artifacts/${appId}/users/${userId}/affirmations/${docId}`;
-             const docRef = doc(db, docPath);
-
-             try {
-                await setDoc(docRef, { is_favorite: newFavState, user_action: 'List Toggle' }, { merge: true });
-                console.log(`Favorite status updated for docId ${docId} to ${newFavState}`);
-                // onSnapshot handles the UI update
-             } catch (error) {
-                console.error("Error toggling favorite from list:", error);
+        window.toggleFavorite = function(docId, newFavState) {
+             const entry = history.find(h => h.docId === docId);
+             if (entry) {
+                 entry.is_favorite = newFavState;
+                 persistHistory();
              }
         }
 
         // Initialize the application on load
-        initializeAppAndAuth();
+        initializeApp();
     </script>
 </body>
 </html>
