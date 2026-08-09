@@ -444,7 +444,7 @@ export function initializeApp() {
                 const appEl = document.getElementById('app');
                 if (appEl) appEl.style.display = 'none';
                 const moodParam = params.get('mood') || 'All';
-                startAmbient(moodParam);
+                startAmbient(moodParam, 30000, null, { dismissOnMouseMove: true });
                 return;
             }
         }

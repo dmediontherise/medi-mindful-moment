@@ -12,6 +12,7 @@ import { mergeHistory, syncDocToCloud } from './sync.js';
 import { updateAuthUI } from './ui.js';
 import { IdleManager } from '../electron/idleLogic.js';
 import { loadSettings, saveSettings, getSettings, resetSettings, DEFAULT_SETTINGS } from '../electron/settings.js';
+import { getAppUrl } from '../electron/main.js';
 
 if (typeof window !== 'undefined') {
     const nativeGetComputedStyle = window.getComputedStyle;
@@ -615,6 +616,35 @@ describe('Medi Mindful Moment - Complete Unit Tests', () => {
             expect(isAmbientActive()).toBe(false);
         });
 
+        it('does not dismiss ambient view on mouse movement when opened from card view', () => {
+            const onScreen = {
+                seed_id: 'a01',
+                mood: 'Anxious',
+                text: 'Card affirmation text',
+                category: 'Grounding'
+            };
+            startAmbient('Anxious', 60000, onScreen);
+            expect(isAmbientActive()).toBe(true);
+
+            const ambientEl = document.getElementById('ambient-view');
+            ambientEl.dispatchEvent(new MouseEvent('mousemove', { clientX: 10, clientY: 10 }));
+            ambientEl.dispatchEvent(new MouseEvent('mousemove', { clientX: 50, clientY: 50 }));
+
+            expect(isAmbientActive()).toBe(true);
+            stopAmbient();
+        });
+
+        it('dismisses ambient view on mouse movement in standalone screensaver mode (?ambient=1)', () => {
+            startAmbient('Anxious', 60000, null, { dismissOnMouseMove: true });
+            expect(isAmbientActive()).toBe(true);
+
+            const ambientEl = document.getElementById('ambient-view');
+            ambientEl.dispatchEvent(new MouseEvent('mousemove', { clientX: 10, clientY: 10 }));
+            ambientEl.dispatchEvent(new MouseEvent('mousemove', { clientX: 50, clientY: 50 }));
+
+            expect(isAmbientActive()).toBe(false);
+        });
+
         it('applies WCAG AA compliant background classes (bg-green-700, bg-red-700, bg-blue-700) for all toast variants', () => {
             showToast('Success toast', 'success');
             const toast = document.getElementById('toast-notification');
@@ -841,6 +871,14 @@ describe('Medi Mindful Moment - Complete Unit Tests', () => {
             expect(manager.thresholdSeconds).toBe(300);
 
             expect(manager.evaluateIdleTime(-10)).toBe('idle');
+        });
+
+        it('returns dev server URL under electron:dev even when dist/index.html exists', () => {
+            const devUrl = getAppUrl('?ambient=1', true);
+            expect(devUrl).toBe('http://localhost:5173?ambient=1');
+
+            const prodUrl = getAppUrl('?ambient=1', false);
+            expect(prodUrl).toMatch(/^file:\/\/\/.*dist\/index\.html\?ambient=1$/);
         });
     });
 });
