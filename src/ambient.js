@@ -13,7 +13,17 @@ export function getActiveAmbientTimer() {
     return ambientIntervalId;
 }
 
-export function startAmbient(mood = 'All', intervalMs = 30000) {
+/**
+ * @param {string} mood        Mood to rotate within, or 'All'.
+ * @param {number} intervalMs  Rotation interval.
+ * @param {object|null} initialAffirmation
+ *        Affirmation to show first. Passed when entering fullscreen from the
+ *        card view so the view expands what is already on screen instead of
+ *        replacing it. Omitted for the standalone `?ambient=1` entry point
+ *        (the desktop screensaver), which has nothing to carry over and
+ *        generates its own.
+ */
+export function startAmbient(mood = 'All', intervalMs = 30000, initialAffirmation = null) {
     stopAmbient(); // Clean up existing ambient session to prevent timer accumulation
 
     activeAmbientMood = mood;
@@ -41,8 +51,13 @@ export function startAmbient(mood = 'All', intervalMs = 30000) {
     document.body.appendChild(ambientEl);
     ambientEl.focus();
 
-    // Initial rotation
-    rotateAmbientAffirmation();
+    // Show the caller's affirmation if given; only generate when there is
+    // nothing to carry over.
+    if (initialAffirmation) {
+        renderAmbientAffirmation(initialAffirmation);
+    } else {
+        rotateAmbientAffirmation();
+    }
 
     // Auto-rotation interval
     ambientIntervalId = setInterval(() => {
@@ -122,6 +137,24 @@ export function rotateAmbientAffirmation() {
 
     const aff = generateAffirmation(targetMood);
     if (!aff) return;
+
+    renderAmbientAffirmation(aff);
+}
+
+/**
+ * Paints an already-chosen affirmation into the ambient view.
+ *
+ * Split out from rotateAmbientAffirmation so entering fullscreen can show the
+ * affirmation the user is already looking at. Generating one on entry both
+ * replaced what was on screen and wrote a spurious 'Generated' record to
+ * history (which then synced to Firestore) every time the button was pressed.
+ */
+export function renderAmbientAffirmation(aff) {
+    if (typeof document === 'undefined' || !aff) return;
+    const ambientEl = document.getElementById('ambient-view');
+    if (!ambientEl) return;
+
+    const targetMood = aff.mood || 'Neutral';
 
     currentAffirmationObj = aff;
 

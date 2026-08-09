@@ -553,6 +553,57 @@ describe('Medi Mindful Moment - Complete Unit Tests', () => {
             expect(getActiveAmbientTimer()).toBeNull();
         });
 
+        it('expands the affirmation already on screen instead of generating a new one', () => {
+            const onScreen = {
+                seed_id: 'a01',
+                mood: 'Anxious',
+                text: 'The affirmation the user was already looking at.',
+                category: 'Grounding',
+                is_favorite: false,
+                docId: 'on-screen-doc',
+                timestamp: '2026-01-01T00:00:00.000Z'
+            };
+
+            startAmbient('Anxious', 60000, onScreen);
+
+            expect(isAmbientActive()).toBe(true);
+            expect(document.getElementById('ambient-text').textContent)
+                .toContain(onScreen.text);
+
+            stopAmbient();
+        });
+
+        it('does not write a history record when opening the ambient view from a card', () => {
+            setHistory([]);
+            const onScreen = {
+                seed_id: 'a02',
+                mood: 'Anxious',
+                text: 'Opening fullscreen must not log a new affirmation.',
+                category: 'Resilience',
+                is_favorite: false,
+                docId: 'no-log-doc',
+                timestamp: '2026-01-01T00:00:00.000Z'
+            };
+
+            startAmbient('Anxious', 60000, onScreen);
+            // Generating on entry previously unshifted a 'Generated' record and
+            // persisted it, which also synced to Firestore when signed in.
+            expect(getHistory().length).toBe(0);
+
+            stopAmbient();
+        });
+
+        it('generates an affirmation when opened standalone with nothing to carry over', () => {
+            // The ?ambient=1 screensaver entry point has no current affirmation.
+            startAmbient('Anxious', 60000);
+
+            expect(isAmbientActive()).toBe(true);
+            expect(document.getElementById('ambient-text').textContent.trim().length)
+                .toBeGreaterThan(0);
+
+            stopAmbient();
+        });
+
         it('dismisses ambient view on any non-modifier key press, and does not dismiss on bare Shift', () => {
             startAmbient('Anxious', 1000);
             expect(isAmbientActive()).toBe(true);
