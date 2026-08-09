@@ -1,15 +1,77 @@
 import { escapeHtml, setCurrentDate } from './utils.js';
-import { getHistory, getFavorites, loadHistory, persistHistory, toggleFavoriteInStorage } from './storage.js';
+import { STORAGE_KEY, getHistory, getFavorites, loadHistory, persistHistory, toggleFavoriteInStorage, setHistory } from './storage.js';
 import { generateAffirmation } from './affirmations.js';
 import { sessionStack, stackIndex, pushToStack, resetStack, setStackIndex } from './stack.js';
 import { renderShareModal, closeShareModal, copyToClipboard, handleSmsShare, handleEmailShare, getShareText } from './share.js';
 import { initTheme, toggleTheme } from './theme.js';
 import { startAmbient } from './ambient.js';
+import { hasFirebaseConfig, getCurrentUser, signInWithGoogle, signOutUser, onAuthStateChange } from './auth.js';
+import { setupCloudListener, syncAllLocalToCloud } from './sync.js';
+import { showToast } from './toast.js';
 
 let currentAffirmation = null;
+let activeCloudUnsubscribe = null;
 
 export function getCurrentAffirmation() {
     return currentAffirmation;
+}
+
+export function updateAuthUI(user = null) {
+    const statusEl = document.getElementById('auth-status');
+    const actionBtn = document.getElementById('auth-action-btn');
+    if (!statusEl || !actionBtn) return;
+
+    if (!hasFirebaseConfig()) {
+        statusEl.textContent = 'Signed out (Offline mode)';
+        actionBtn.style.display = 'inline-block';
+        actionBtn.textContent = 'Sign In';
+        actionBtn.disabled = true;
+        actionBtn.title = 'Cloud sync disabled (no Firebase config)';
+        actionBtn.className = 'px-2.5 py-1 rounded-lg border border-subtle-theme text-muted-theme opacity-50 cursor-not-allowed text-xs font-medium';
+        return;
+    }
+
+    actionBtn.disabled = false;
+    actionBtn.className = 'px-2.5 py-1 rounded-lg border border-subtle-theme text-main-theme hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors font-medium text-xs';
+
+    if (!user) {
+        statusEl.textContent = 'Signed out';
+        actionBtn.style.display = 'inline-block';
+        actionBtn.textContent = 'Sign in with Google';
+        actionBtn.title = 'Sign in with Google';
+    } else {
+        statusEl.textContent = user.displayName || user.email || 'Signed in';
+        actionBtn.style.display = 'inline-block';
+        actionBtn.textContent = 'Sign Out';
+        actionBtn.title = 'Sign Out';
+    }
+}
+
+export function initAuthListener() {
+    return onAuthStateChange(async (user) => {
+        updateAuthUI(user);
+
+        if (user) {
+            if (activeCloudUnsubscribe) {
+                activeCloudUnsubscribe();
+            }
+
+            activeCloudUnsubscribe = setupCloudListener(user, (merged) => {
+                const contentArea = document.getElementById('content-area');
+                const currentView = contentArea ? contentArea.dataset.view : null;
+                if (currentView === 'history' || currentView === 'favorites') {
+                    renderHistory(currentView);
+                }
+            });
+
+            await syncAllLocalToCloud(user, getHistory());
+        } else {
+            if (activeCloudUnsubscribe) {
+                activeCloudUnsubscribe();
+                activeCloudUnsubscribe = null;
+            }
+        }
+    });
 }
 
 export function renderMoodSelector() {
@@ -214,10 +276,12 @@ export function handleAction(action, mood) {
             
             if (existingEntry) {
                 existingEntry.is_favorite = newFavState;
+                persistHistory(existingEntry);
+            } else {
+                aff.is_favorite = newFavState;
+                persistHistory(aff);
             }
-            aff.is_favorite = newFavState;
             
-            persistHistory();
             renderAffirmationCard(mood, false);
             break;
         }
@@ -283,6 +347,41 @@ export function setupEventDelegation() {
         themeBtn.addEventListener('click', () => toggleTheme());
     }
 
+    const authActionBtn = document.getElementById('auth-action-btn');
+    if (authActionBtn) {
+        authActionBtn.addEventListener('click', async () => {
+            if (!hasFirebaseConfig()) {
+                showToast("Cloud sync disabled. No Firebase config.", "info");
+                return;
+            }
+
+            const user = getCurrentUser();
+            if (!user) {
+                try {
+                    await signInWithGoogle();
+                } catch (err) {
+                    console.error("Sign in failed:", err);
+                    if (err.code !== 'auth/popup-closed-by-user') {
+                        showToast("Sign in failed: " + err.message, "error");
+                    }
+                }
+            } else {
+                try {
+                    await signOutUser();
+                    // Clear session data on sign out per Decision Rule
+                    localStorage.removeItem(STORAGE_KEY);
+                    setHistory([]);
+                    loadHistory();
+                    renderMoodSelector();
+                    showToast("Signed out", "info");
+                } catch (err) {
+                    console.error("Sign out failed:", err);
+                    showToast("Sign out failed: " + err.message, "error");
+                }
+            }
+        });
+    }
+
     const ambientBtn = document.getElementById('ambient-btn');
     if (ambientBtn) {
         ambientBtn.addEventListener('click', () => {
@@ -346,11 +445,6 @@ export function initializeApp() {
                 return;
             }
         }
-
-        const authStatusEl = document.getElementById('auth-status');
-        if (authStatusEl) {
-            authStatusEl.textContent = 'Ready';
-        }
         
         setCurrentDate();
         loadHistory();
@@ -362,6 +456,8 @@ export function initializeApp() {
         
         setupEventDelegation();
         renderMoodSelector();
+        updateAuthUI(null);
+        initAuthListener();
     } catch (error) {
         console.error("Error during initialization:", error);
         const contentArea = document.getElementById('content-area');

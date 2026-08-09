@@ -1,3 +1,6 @@
+import { getCurrentUser } from './auth.js';
+import { syncDocToCloud } from './sync.js';
+
 export const STORAGE_KEY = 'medi_mindful_history';
 export const SEED_STORAGE_KEY = 'medi_mindful_install_seed';
 
@@ -85,10 +88,22 @@ export function loadHistory() {
     return historyState;
 }
 
-export function persistHistory() {
+export function persistHistory(modifiedItem = null) {
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(historyState));
         loadHistory();
+
+        // If signed in, replicate write to Firestore non-blockingly
+        const user = getCurrentUser();
+        if (user) {
+            if (modifiedItem) {
+                syncDocToCloud(user, modifiedItem);
+            } else {
+                for (const item of historyState) {
+                    syncDocToCloud(user, item);
+                }
+            }
+        }
     } catch (e) {
         console.error("Failed to save to LocalStorage", e);
     }
@@ -98,6 +113,6 @@ export function toggleFavoriteInStorage(docId, newFavState) {
     const entry = historyState.find(h => h.docId === docId);
     if (entry) {
         entry.is_favorite = newFavState;
-        persistHistory();
+        persistHistory(entry);
     }
 }

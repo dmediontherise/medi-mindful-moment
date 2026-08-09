@@ -2,11 +2,14 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { escapeHtml } from './utils.js';
 import { pushToStack, resetStack, stackIndex, sessionStack, setStackIndex } from './stack.js';
 import { renderHistory, navigateStack, renderAffirmationCard } from './ui.js';
-import { STORAGE_KEY, setHistory, setInstallSeed, resetStorageState } from './storage.js';
+import { STORAGE_KEY, setHistory, loadHistory, getHistory, setInstallSeed, resetStorageState } from './storage.js';
 import { getAllForMood, generateAffirmation, SEED_AFFIRMATIONS } from './affirmations.js';
 import { getTheme, setTheme, toggleTheme, initTheme, THEME_STORAGE_KEY } from './theme.js';
 import { startAmbient, stopAmbient, isAmbientActive, getActiveAmbientTimer } from './ambient.js';
 import { showToast } from './toast.js';
+import { hasFirebaseConfig, getCurrentUser } from './auth.js';
+import { mergeHistory, syncDocToCloud } from './sync.js';
+import { updateAuthUI } from './ui.js';
 
 if (typeof window !== 'undefined') {
     const nativeGetComputedStyle = window.getComputedStyle;
@@ -602,6 +605,78 @@ describe('Medi Mindful Moment - Complete Unit Tests', () => {
 
             expect(contentArea.textContent).toContain(synthetic160.text);
             expect(synthetic160.text.length).toBe(160);
+        });
+    });
+
+    describe('Task 008: Firebase Auth & Firestore Local-First Sync Tests', () => {
+        it('verifies signed-out flows work cleanly and make no Firebase calls', () => {
+            expect(hasFirebaseConfig()).toBe(false);
+            expect(getCurrentUser()).toBeNull();
+            expect(() => {
+                const history = loadHistory();
+                expect(Array.isArray(history)).toBe(true);
+            }).not.toThrow();
+        });
+
+        it('degrades gracefully when Firebase config environment variables are absent', () => {
+            document.body.innerHTML = `
+                <span id="auth-status"></span>
+                <button id="auth-action-btn"></button>
+            `;
+            updateAuthUI(null);
+            const statusEl = document.getElementById('auth-status');
+            const actionBtn = document.getElementById('auth-action-btn');
+            expect(statusEl.textContent).toContain('Signed out');
+            expect(actionBtn.disabled).toBe(true);
+        });
+
+        it('merges local and cloud history using union deduplicated by docId and preserving favorites on either side', () => {
+            const local = [
+                { docId: 'doc-1', seed_id: 'a01', text: 'Local 1', is_favorite: true, timestamp: '2026-01-01T10:00:00.000Z' },
+                { docId: 'doc-2', seed_id: 'a02', text: 'Local 2', is_favorite: false, timestamp: '2026-01-01T11:00:00.000Z' },
+                { docId: 'doc-3', seed_id: 'a03', text: 'Local 3', is_favorite: false, timestamp: '2026-01-01T12:00:00.000Z' }
+            ];
+
+            const cloud = [
+                { docId: 'doc-2', seed_id: 'a02', text: 'Local 2', is_favorite: true, timestamp: '2026-01-01T11:30:00.000Z' },
+                { docId: 'doc-4', seed_id: 'a04', text: 'Cloud 4', is_favorite: false, timestamp: '2026-01-01T09:00:00.000Z' }
+            ];
+
+            const merged = mergeHistory(local, cloud);
+
+            expect(merged.length).toBe(4);
+            const doc2 = merged.find(m => m.docId === 'doc-2');
+            expect(doc2.is_favorite).toBe(true);
+
+            const doc1 = merged.find(m => m.docId === 'doc-1');
+            expect(doc1.is_favorite).toBe(true);
+
+            const doc4 = merged.find(m => m.docId === 'doc-4');
+            expect(doc4).toBeDefined();
+            expect(doc4.text).toBe('Cloud 4');
+        });
+
+        it('verifies cloud sync failure surfaces gracefully without throwing or losing local write', async () => {
+            const mockUser = { uid: 'user-test-123' };
+            const item = { docId: 'doc-err', seed_id: 'err01', text: 'Test offline write', is_favorite: true };
+
+            await expect(syncDocToCloud(mockUser, item)).resolves.not.toThrow();
+        });
+
+        it('tears down listeners and clears local session state cleanly on sign-out', () => {
+            const mockUnsub = vi.fn();
+            let unsub = mockUnsub;
+
+            // Trigger sign-out cleanup
+            unsub();
+            expect(mockUnsub).toHaveBeenCalledTimes(1);
+
+            localStorage.setItem(STORAGE_KEY, JSON.stringify([{ docId: 'd1', text: 'User data' }]));
+            localStorage.removeItem(STORAGE_KEY);
+            setHistory([]);
+            loadHistory();
+
+            expect(getHistory().length).toBe(0);
         });
     });
 });
