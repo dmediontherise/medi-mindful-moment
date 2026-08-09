@@ -387,10 +387,13 @@ export function setupEventDelegation() {
         ambientBtn.addEventListener('click', () => {
             const currentView = contentArea ? contentArea.dataset.view : 'selector';
             let mood = 'All';
+            let initial = null;
             if (currentView === 'card' && currentAffirmation) {
+                // Expand what is on screen rather than generating a replacement.
                 mood = currentAffirmation.mood;
+                initial = currentAffirmation;
             }
-            startAmbient(mood);
+            startAmbient(mood, 30000, initial);
         });
     }
 
