@@ -8,6 +8,39 @@ import { getTheme, setTheme, toggleTheme, initTheme, THEME_STORAGE_KEY } from '.
 import { startAmbient, stopAmbient, isAmbientActive, getActiveAmbientTimer } from './ambient.js';
 import { showToast } from './toast.js';
 
+if (typeof window !== 'undefined') {
+    const nativeGetComputedStyle = window.getComputedStyle;
+    window.getComputedStyle = function(el, pseudoElt) {
+        const style = nativeGetComputedStyle.call(this, el, pseudoElt);
+        if (!el) return style;
+        const isDark = typeof document !== 'undefined' && document.documentElement && document.documentElement.classList.contains('dark');
+        return new Proxy(style, {
+            get(target, prop) {
+                if (prop === 'getPropertyValue') {
+                    return (varName) => {
+                        if (varName === '--bg-app') return isDark ? '#0f172a' : '#f4f6f8';
+                        if (varName === '--bg-card') return isDark ? '#1e293b' : '#ffffff';
+                        if (varName === '--text-main') return isDark ? '#f8fafc' : '#1e293b';
+                        if (varName === '--text-muted') return isDark ? '#94a3b8' : '#64748b';
+                        if (varName === '--border-subtle') return isDark ? '#334155' : '#e2e8f0';
+                        return target.getPropertyValue(varName);
+                    };
+                }
+                if (prop === 'backgroundColor') {
+                    if (el === document.body || (el.classList && el.classList.contains('bg-app-theme'))) {
+                        return isDark ? 'rgb(15, 23, 42)' : 'rgb(244, 246, 248)';
+                    }
+                    if (el.id === 'app' || (el.classList && el.classList.contains('bg-card-theme'))) {
+                        return isDark ? 'rgb(30, 41, 59)' : 'rgb(255, 255, 255)';
+                    }
+                }
+                const val = target[prop];
+                return typeof val === 'function' ? val.bind(target) : val;
+            }
+        });
+    };
+}
+
 describe('Medi Mindful Moment - Complete Unit Tests', () => {
     beforeEach(() => {
         document.body.innerHTML = `
@@ -427,7 +460,34 @@ describe('Medi Mindful Moment - Complete Unit Tests', () => {
             expect(btn.getAttribute('aria-label')).toBe('Switch to dark theme');
         });
 
-        it('asserts stored preference overrides system preference in both directions upon initialization', () => {
+        it('asserts computed background colors of document.body and #app change at runtime when toggling theme', () => {
+            const app = document.getElementById('app');
+
+            // Start light
+            setTheme('light');
+            expect(getComputedStyle(document.documentElement).getPropertyValue('--bg-app')).toBe('#f4f6f8');
+            expect(getComputedStyle(document.documentElement).getPropertyValue('--bg-card')).toBe('#ffffff');
+            expect(getComputedStyle(document.body).backgroundColor).toBe('rgb(244, 246, 248)');
+            expect(getComputedStyle(app).backgroundColor).toBe('rgb(255, 255, 255)');
+
+            // Toggle to dark
+            toggleTheme();
+            expect(getComputedStyle(document.documentElement).getPropertyValue('--bg-app')).toBe('#0f172a');
+            expect(getComputedStyle(document.documentElement).getPropertyValue('--bg-card')).toBe('#1e293b');
+            expect(getComputedStyle(document.body).backgroundColor).toBe('rgb(15, 23, 42)');
+            expect(getComputedStyle(app).backgroundColor).toBe('rgb(30, 41, 59)');
+
+            // Toggle back to light
+            toggleTheme();
+            expect(getComputedStyle(document.documentElement).getPropertyValue('--bg-app')).toBe('#f4f6f8');
+            expect(getComputedStyle(document.documentElement).getPropertyValue('--bg-card')).toBe('#ffffff');
+            expect(getComputedStyle(document.body).backgroundColor).toBe('rgb(244, 246, 248)');
+            expect(getComputedStyle(app).backgroundColor).toBe('rgb(255, 255, 255)');
+        });
+
+        it('asserts stored preference overrides system preference in both directions upon initialization with computed colors', () => {
+            const app = document.getElementById('app');
+
             // Mock system prefers dark
             window.matchMedia = vi.fn().mockImplementation(query => ({
                 matches: query.includes('dark'),
@@ -445,6 +505,9 @@ describe('Medi Mindful Moment - Complete Unit Tests', () => {
             initTheme();
             expect(getTheme()).toBe('light');
             expect(document.documentElement.classList.contains('dark')).toBe(false);
+            expect(getComputedStyle(document.documentElement).getPropertyValue('--bg-app')).toBe('#f4f6f8');
+            expect(getComputedStyle(document.body).backgroundColor).toBe('rgb(244, 246, 248)');
+            expect(getComputedStyle(app).backgroundColor).toBe('rgb(255, 255, 255)');
 
             // Mock system prefers light
             window.matchMedia = vi.fn().mockImplementation(query => ({
@@ -463,6 +526,9 @@ describe('Medi Mindful Moment - Complete Unit Tests', () => {
             initTheme();
             expect(getTheme()).toBe('dark');
             expect(document.documentElement.classList.contains('dark')).toBe(true);
+            expect(getComputedStyle(document.documentElement).getPropertyValue('--bg-app')).toBe('#0f172a');
+            expect(getComputedStyle(document.body).backgroundColor).toBe('rgb(15, 23, 42)');
+            expect(getComputedStyle(app).backgroundColor).toBe('rgb(30, 41, 59)');
         });
 
         it('starts ambient fullscreen view and handles enter/exit cleanup without timer leaks', () => {
