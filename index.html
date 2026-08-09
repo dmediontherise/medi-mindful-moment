@@ -4,85 +4,80 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Medi Mindful Moment - Daily Affirmation Generator</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Font: Inter -->
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f0f4f8; /* Softer, slightly blue background */
-        }
-        /* Custom scrollbar for history to match theme */
-        .custom-scroll::-webkit-scrollbar {
-            width: 6px;
-        }
-        .custom-scroll::-webkit-scrollbar-thumb {
-            background-color: #a5b4fc; /* Light blue thumb */
-            border-radius: 3px;
-        }
-        .custom-scroll::-webkit-scrollbar-track {
-            background: #e0e7ff; /* Very light track */
-        }
-        /* Style for buttons that handle navigation */
-        .native-share-btn:active {
-            transform: scale(0.98);
-        }
-        /* Styles for the Toast Notification */
-        .toast-enter {
-            opacity: 0;
-            transform: translateY(20px);
-        }
-        .toast-enter-active {
-            opacity: 1;
-            transform: translateY(0);
-            transition: opacity 0.3s, transform 0.3s;
-        }
-        .toast-exit {
-            opacity: 1;
-            transform: translateY(0);
-        }
-        .toast-exit-active {
-            opacity: 0;
-            transform: translateY(20px);
-            transition: opacity 0.3s, transform 0.3s;
-        }
-    </style>
+    <!-- Prevent flash of wrong theme before first paint -->
+    <script>
+        (function() {
+            try {
+                var stored = localStorage.getItem('medi_mindful_theme');
+                var isDark = stored === 'dark' || (!stored && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                if (isDark) {
+                    document.documentElement.classList.add('dark');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                }
+            } catch (e) {}
+        })();
+    </script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
-<body class="min-h-screen flex items-center justify-center p-4">
+<body class="min-h-screen flex items-center justify-center p-3 sm:p-4 bg-app-theme text-main-theme">
 
     <!-- Main Application Container -->
-    <div id="app" class="w-full max-w-lg bg-white shadow-2xl rounded-3xl p-6 md:p-8 transition-all duration-300">
+    <div id="app" tabindex="-1" class="w-full max-w-lg bg-card-theme border border-subtle-theme shadow-2xl rounded-3xl p-4 sm:p-8 transition-all duration-300">
         
-        <header class="text-center mb-6">
-            <p id="current-date" class="text-sm font-medium text-blue-500 mb-1"></p>
-            <h1 class="text-3xl font-extrabold text-[#104E9E]">Medi Mindful Moment</h1>
-            <p id="auth-status" class="text-xs text-gray-400 mt-1">Connecting...</p> 
+        <header class="mb-6">
+            <div class="flex items-center justify-between gap-2 mb-3">
+                <p id="current-date" class="text-xs sm:text-sm font-semibold text-blue-600 dark:text-blue-400 truncate min-w-0"></p>
+                <div class="flex items-center space-x-2 flex-shrink-0">
+                    <!-- Theme Toggle Button -->
+                    <button id="theme-toggle-btn" aria-label="Toggle theme" class="p-2 rounded-xl border border-subtle-theme text-muted-theme hover:text-main-theme transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+                        </svg>
+                    </button>
+                    <!-- Ambient Fullscreen View Button -->
+                    <button id="ambient-btn" aria-label="Enter ambient fullscreen view" title="Enter ambient fullscreen view" class="p-2 rounded-xl border border-subtle-theme text-muted-theme hover:text-main-theme transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="text-center">
+                <h1 class="text-2xl sm:text-3xl font-extrabold text-[#104E9E] dark:text-blue-400">Medi Mindful Moment</h1>
+                <div id="auth-container" class="mt-1 flex items-center justify-center space-x-2 text-xs">
+                    <span id="auth-status" class="text-muted-theme">Initializing...</span>
+                    <button id="auth-action-btn" class="px-2.5 py-1 rounded-lg border border-subtle-theme text-main-theme hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors font-medium" style="display: none;"></button>
+                </div>
+            </div>
         </header>
 
         <!-- Dynamic Content Area -->
-        <div id="content-area" class="min-h-[400px] flex flex-col justify-center">
+        <div id="content-area" class="min-h-[380px] flex flex-col justify-center">
             <!-- Content will be rendered here (Mood Selector, Card, History) -->
             <div class="flex justify-center items-center h-full">
-                <div class="text-center text-gray-500">Initializing app...</div>
+                <div class="text-center text-muted-theme">Initializing app...</div>
             </div>
         </div>
 
         <!-- Floating Bottom Navigation -->
-        <nav id="nav-bar" class="flex justify-around mt-8 border-t pt-4 sticky bottom-0 bg-white shadow-t-lg" style="display: none;">
-            <button onclick="renderMoodSelector()" class="p-3 rounded-xl hover:bg-blue-100 transition-colors text-gray-500 hover:text-[#104E9E]">
+        <nav id="nav-bar" aria-label="Main Navigation" class="flex justify-around mt-6 border-t border-subtle-theme pt-4 sticky bottom-0 bg-card-theme shadow-t-lg" style="display: none;">
+            <button id="nav-new-affirmation" aria-label="New Affirmation" class="p-3 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors text-muted-theme hover:text-main-theme">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-7 h-7">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18m9-9H3" />
                 </svg>
                 <span class="sr-only">New Affirmation</span>
             </button>
-            <button onclick="renderHistory('history')" class="p-3 rounded-xl hover:bg-blue-100 transition-colors text-gray-500 hover:text-[#104E9E]">
+            <button id="nav-history" aria-label="History" class="p-3 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors text-muted-theme hover:text-main-theme">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-7 h-7">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.75h-7.5v2.75M19.5 7.5v-2.75h-7.5v2.75m7.5 10.5v-2.75h-7.5v2.75M4.5 7.5v-2.75h-2.25v2.75M4.5 14.25v-2.75h-2.25v2.75M4.5 21v-2.75h-2.25v2.75" />
                 </svg>
                 <span class="sr-only">History</span>
             </button>
-            <button onclick="renderHistory('favorites')" class="p-3 rounded-xl hover:bg-blue-100 transition-colors text-gray-500 hover:text-[#104E9E]">
+            <button id="nav-favorites" aria-label="Favorites" class="p-3 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors text-muted-theme hover:text-main-theme">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-7 h-7">
                     <path fill-rule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" clip-rule="evenodd" />
                 </svg>
@@ -92,599 +87,28 @@
     </div>
     
     <!-- Share Options Modal -->
-    <div id="share-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 transition-opacity duration-300" style="display: none;">
-        <div id="modal-content" class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-xs transform transition-all duration-300 scale-90">
-            <h3 class="text-xl font-bold text-gray-800 mb-4 text-center">Share This Moment</h3>
-            <div id="share-content-text" class="text-center text-sm font-light text-gray-600 mb-4 italic p-2 border-b border-gray-200"></div>
+    <div id="share-modal" role="dialog" aria-modal="true" aria-labelledby="share-modal-title" aria-hidden="true" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50 transition-opacity duration-300" style="display: none;">
+        <div id="modal-content" class="bg-card-theme border border-subtle-theme p-6 rounded-2xl shadow-2xl w-full max-w-xs transform transition-all duration-300 scale-90">
+            <h3 id="share-modal-title" class="text-xl font-bold text-main-theme mb-4 text-center">Share This Moment</h3>
+            <div id="share-content-text" class="text-center text-sm font-light text-muted-theme mb-4 italic p-2 border-b border-subtle-theme"></div>
             
             <!-- Fallback Guidance -->
-            <p class="text-xs text-red-500 text-center mb-4 p-2 bg-red-50 rounded-lg">
+            <p class="text-xs text-red-500 dark:text-red-400 text-center mb-4 p-2 bg-red-50 dark:bg-red-950/40 rounded-lg">
                 <span class="font-bold">Important:</span> If Text/Email buttons do not open an app, please use "Copy to Clipboard" and paste manually.
             </p>
 
             <div class="space-y-3" id="share-buttons-container">
                 <!-- Share buttons will be injected here -->
             </div>
-            <button onclick="closeShareModal()" class="w-full mt-6 py-3 rounded-xl bg-gray-200 text-gray-700 font-semibold hover:bg-gray-300 transition-colors">Close</button>
+            <button id="close-modal-btn" class="w-full mt-6 py-3 rounded-xl bg-gray-200 dark:bg-slate-700 text-main-theme font-semibold hover:bg-gray-300 dark:hover:bg-slate-600 transition-colors">Close</button>
         </div>
     </div>
 
     <!-- Floating Toast Notification -->
-    <div id="toast-notification" class="fixed bottom-4 left-1/2 -translate-x-1/2 p-3 bg-green-500 text-white rounded-xl shadow-xl z-50 text-sm font-medium transition-all" style="display: none; opacity: 0;">
+    <div id="toast-notification" class="fixed bottom-4 left-1/2 -translate-x-1/2 p-3 bg-green-700 text-white rounded-xl shadow-xl z-50 text-sm font-medium transition-all" style="display: none; opacity: 0;">
         <!-- Message will be inserted here -->
     </div>
 
-    <!-- LocalStorage Logic (Replaces Firebase) -->
-    <script>
-        // --- GLOBAL STATE ---
-        let history = []; 
-        let favorites = []; 
-        let currentAffirmation = null;
-        let currentShareText = "";
-        const STORAGE_KEY = 'medi_mindful_history';
-
-        // Session Stack for Back/Next/Undo functionality
-        const sessionStack = [];
-        let stackIndex = -1;
-
-        // Function to set the current date
-        function setCurrentDate() {
-            const dateElement = document.getElementById('current-date');
-            if (dateElement) {
-                const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-                dateElement.textContent = new Date().toLocaleDateString('en-US', options);
-            }
-        }
-
-        const SEED_AFFIRMATIONS = [
-            { id: 'a01', mood: 'Anxious', text: 'My breath creates a space of calm, separating me from the rushing thoughts.', category: 'Grounding' },
-            { id: 'a02', mood: 'Anxious', text: 'I am safe in this moment. I have handled uncertainty before, and I will now.', category: 'Resilience' },
-            { id: 'a03', mood: 'Anxious', text: 'I can observe this energy without judgement; it does not control my day.', category: 'Self-Kindness' },
-            { id: 'a04', mood: 'Anxious', text: 'Gently slow your pace. You have permission to move with intention, not haste.', category: 'Grounding' },
-            { id: 'a05', mood: 'Anxious', text: 'This feeling is only temporary, a passing cloud in the wide sky of my awareness.', category: 'Reflection' },
-            { id: 'b01', mood: 'Excited', text: 'I welcome this energy and channel it toward meaningful, focused creation today.', category: 'Motivation' },
-            { id: 'b02', mood: 'Excited', text: 'Let this joy be contagious. I can share my enthusiasm with a sense of peace.', category: 'Gratitude' },
-            { id: 'b03', mood: 'Excited', text: 'I trust my instincts. This positive momentum is a clear sign to move forward.', category: 'Empowerment' },
-            { id: 'b04', mood: 'Excited', text: 'My success is already unfolding, layer by layer, in its perfect timing.', category: 'Motivation' },
-            { id: 'b05', mood: 'Excited', text: 'I appreciate the anticipation. I will honor this moment by fully enjoying the present.', category: 'Reflection' },
-            { id: 'c01', mood: 'Tired', text: 'Rest is not a luxury, but a productive step toward my sustainable future.', category: 'Self-Kindness' },
-            { id: 'c02', mood: 'Tired', text: 'I have done enough today. I can soften my focus and simply allow myself to recharge.', category: 'Calm' },
-            { id: 'c03', mood: 'Tired', text: 'Even in this slump, I am grateful for the body that carries me through my life.', category: 'Gratitude' },
-            { id: 'c04', mood: 'Tired', text: 'Only essential tasks require my attention; the rest can wait patiently until tomorrow.', category: 'Empowerment' },
-            { id: 'c05', mood: 'Tired', text: 'Let the weight fall away. You deserve to feel light and unburdened right now.', category: 'Grounding' },
-            { id: 'd01', mood: 'Confident', text: 'My voice is important, and I will share my insights with clear, calm assurance.', category: 'Empowerment' },
-            { id: 'd02', mood: 'Confident', text: 'I am prepared for what comes next, trusting the preparation and wisdom I hold.', category: 'Resilience' },
-            { id: 'd03', mood: 'Confident', text: 'I hold a deep belief in my own abilities; my path forward is completely clear.', category: 'Motivation' },
-            { id: 'd04', mood: 'Confident', text: 'I give myself credit for how far I have come, using that strength for this step.', category: 'Reflection' },
-            { id: 'd05', mood: 'Confident', text: 'Today, I will stand tall and take up the space I deserve in the world.', category: 'Grounding' },
-            { id: 'e01', mood: 'Overwhelmed', text: 'I will break this complex situation down into the smallest possible first step.', category: 'Motivation' },
-            { id: 'e02', mood: 'Overwhelmed', text: 'Release the need for perfection. Good enough is a beautiful, sustainable goal.', category: 'Self-Kindness' },
-            { id: 'e03', mood: 'Overwhelmed', text: 'I can gently pause and reset. The world will wait for me to take this necessary breath.', category: 'Calm' },
-            { id: 'e04', mood: 'Overwhelmed', text: 'I am capable of managing this feeling; I will choose to focus on just one thing now.', category: 'Empowerment' },
-            { id: 'e05', mood: 'Overwhelmed', text: 'My mind is a priority. I will protect its peace by limiting incoming information.', category: 'Grounding' },
-            { id: 'f01', mood: 'Neutral', text: 'This day is a blank page, offering a thousand possibilities for focused intention.', category: 'Reflection' },
-            { id: 'f02', mood: 'Neutral', text: 'I am present and observant, noticing the small details that bring gentle joy.', category: 'Gratitude' },
-            { id: 'f03', mood: 'Neutral', text: 'Let curiosity guide me. Today I am open to learning and experiencing something new.', category: 'Motivation' },
-            { id: 'f04', mood: 'Neutral', text: 'I allow myself to simply be, accepting this moment without any demand for change.', category: 'Calm' },
-            { id: 'f05', mood: 'Neutral', text: 'I trust the rhythm of the day and choose the pace that feels most true to my needs.', category: 'Empowerment' }
-        ];
-
-        /**
-         * Initializes the app using LocalStorage.
-         */
-        function initializeApp() {
-            try {
-                const authStatusEl = document.getElementById('auth-status');
-                authStatusEl.textContent = 'Ready'; // No real auth needed
-                
-                setCurrentDate();
-                loadHistory();
-                
-                document.getElementById('nav-bar').style.display = 'flex';
-                renderMoodSelector();
-            } catch (error) {
-                console.error("Error during initialization:", error);
-                document.getElementById('content-area').innerHTML = `
-                    <div class="text-center text-red-600 p-4 bg-red-100 rounded-xl">
-                        <p class="font-bold">Error Initializing App</p>
-                        <p class="text-sm">${error.message}</p>
-                    </div>
-                `;
-            }
-        }
-
-        /**
-         * Loads history from LocalStorage.
-         */
-        function loadHistory() {
-            try {
-                const storedData = localStorage.getItem(STORAGE_KEY);
-                if (storedData) {
-                    history = JSON.parse(storedData);
-                } else {
-                    history = [];
-                }
-
-                // Rebuild favorites list
-                favorites = history
-                    .filter(item => item.is_favorite)
-                    .map(item => item.seed_id);
-
-                // Sort by timestamp descending (newest first)
-                history.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-                console.log(`History Loaded. Total: ${history.length} | Favorites: ${favorites.length}`);
-
-                // Refresh views if active
-                const currentView = document.getElementById('content-area').dataset.view;
-                if (currentView === 'history' || currentView === 'favorites') {
-                    renderHistory(currentView);
-                }
-            } catch (e) {
-                console.error("Failed to load history from LocalStorage", e);
-            }
-        }
-
-        /**
-         * Saves the current history array to LocalStorage.
-         */
-        function persistHistory() {
-            try {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
-                loadHistory(); // Reload to update state/UI
-            } catch (e) {
-                console.error("Failed to save to LocalStorage", e);
-                showToast("Failed to save data locally.", "error");
-            }
-        }
-
-        /**
-         * Selects a unique affirmation based on mood and history.
-         * @param {string} mood - The user's current mood.
-         * @returns {object|null} The selected affirmation object or null if none are available.
-         */
-        function generateAffirmation(mood) {
-            // 1. Identify all affirmations already shown to the user (by seed_id)
-            const usedSeedIds = history.map(h => h.seed_id);
-            
-            // 2. Filter available candidates based on mood and non-repetition
-            const candidates = SEED_AFFIRMATIONS.filter(seed => 
-                seed.mood === mood && !usedSeedIds.includes(seed.id)
-            );
-
-            // 3. Simple weighted selection (prioritize favorites categories)
-            if (candidates.length > 0) {
-                // Determine favorite categories
-                const favoriteCategories = history
-                    .filter(h => h.is_favorite)
-                    .map(h => h.category);
-
-                let selectedCandidate;
-
-                // Attempt to select a candidate whose category is a favorite, if available
-                const preferredCandidates = candidates.filter(c => favoriteCategories.includes(c.category));
-                
-                if (preferredCandidates.length > 0) {
-                    // Randomly pick from preferred candidates
-                    selectedCandidate = preferredCandidates[Math.floor(Math.random() * preferredCandidates.length)];
-                } else {
-                    // Randomly pick from all unique, mood-matched candidates
-                    selectedCandidate = candidates[Math.floor(Math.random() * candidates.length)];
-                }
-
-                // Prepare the affirmation object for display/storage
-                const newAffirmation = {
-                    seed_id: selectedCandidate.id,
-                    mood: selectedCandidate.mood,
-                    text: selectedCandidate.text,
-                    category: selectedCandidate.category,
-                    is_favorite: false,
-                    docId: crypto.randomUUID(), // Use UUID for unique tracking
-                    timestamp: new Date().toISOString() // ISO string for LocalStorage serialization
-                };
-
-                // Immediately log to history
-                logAffirmation(newAffirmation, 'Generated');
-
-                return newAffirmation;
-            } else {
-                // 4. Handle repetition risk (fallback logic)
-                currentAffirmation = null;
-                console.warn("All unique affirmations for this mood have been used. Showing a random previous one as fallback.");
-
-                // If all are used, return a random one from history for the same mood
-                const fallbackHistory = history.filter(h => h.mood === mood);
-                if (fallbackHistory.length > 0) {
-                     return fallbackHistory[Math.floor(Math.random() * fallbackHistory.length)];
-                }
-            }
-
-            return null;
-        }
-
-        /**
-         * Logs the affirmation event to LocalStorage.
-         * @param {object} aff - The affirmation object.
-         * @param {string} action - 'Generated', 'Reroll', or 'Save'.
-         */
-        function logAffirmation(aff, action) {
-            // If it's a new generation, push to history
-            if (action === 'Generated') {
-                // Ensure we don't duplicate if called multiple times for same docId
-                const exists = history.find(h => h.docId === aff.docId);
-                if (!exists) {
-                    history.unshift(aff); // Add to beginning
-                    persistHistory();
-                }
-            }
-        }
-
-        // --- SESSION STACK LOGIC ---
-        
-        /**
-         * Manages the session stack for back/next functionality.
-         * @param {object} aff - The new affirmation to push.
-         */
-        function pushToStack(aff) {
-            // If the user clicks Next/Generate after clicking Back, trim the forward history
-            if (stackIndex < sessionStack.length - 1) {
-                sessionStack.splice(stackIndex + 1);
-            }
-            sessionStack.push(aff);
-            stackIndex = sessionStack.length - 1;
-            // Keep stack size manageable
-            if (sessionStack.length > 10) {
-                sessionStack.shift();
-                stackIndex--;
-            }
-        }
-
-        /**
-         * Moves the stack index.
-         * @param {number} delta - 1 for next, -1 for back.
-         */
-        window.navigateStack = function(delta) {
-            const newIndex = stackIndex + delta;
-            if (newIndex >= 0 && newIndex < sessionStack.length) {
-                stackIndex = newIndex;
-                const aff = sessionStack[stackIndex];
-                renderAffirmationCard(aff.mood, false); // Render from stack, do not generate new
-            } else if (delta > 0 && newIndex === sessionStack.length) {
-                // If trying to move next from the end, generate a new one
-                handleGenerateNext(sessionStack[stackIndex].mood);
-            }
-        }
-
-
-        // --- SHARING UTILITIES ---
-
-        /**
-         * Displays a temporary, floating notification.
-         * @param {string} message - The message to display.
-         * @param {string} type - Optional type ('success', 'error', 'info').
-         */
-        let toastTimeout;
-        window.showToast = function(message, type = 'success') {
-            clearTimeout(toastTimeout);
-            const toast = document.getElementById('toast-notification');
-
-            // Reset classes
-            toast.className = 'fixed bottom-4 left-1/2 -translate-x-1/2 p-3 rounded-xl shadow-xl z-50 text-sm font-medium transition-all';
-            
-            // Set message and type-specific colors
-            toast.textContent = message;
-            if (type === 'success') {
-                toast.classList.add('bg-green-500', 'text-white');
-            } else if (type === 'error') {
-                toast.classList.add('bg-red-500', 'text-white');
-            } else {
-                toast.classList.add('bg-blue-500', 'text-white');
-            }
-
-            // Show the toast with transition
-            toast.style.display = 'block';
-            setTimeout(() => {
-                toast.classList.add('toast-enter-active');
-            }, 10); 
-
-            // Hide the toast after 3 seconds
-            toastTimeout = setTimeout(() => {
-                toast.classList.remove('toast-enter-active');
-                toast.classList.add('toast-exit-active');
-                setTimeout(() => {
-                    toast.style.display = 'none';
-                    toast.classList.remove('toast-exit-active');
-                }, 300);
-            }, 3000);
-        }
-
-        /**
-         * Handles copying text to clipboard.
-         * @param {string} textToCopy - The text to be copied.
-         * @param {HTMLElement} buttonEl - The button element (optional, used to prevent double-firing).
-         */
-        window.copyToClipboard = function(textToCopy) {
-            try {
-                const textarea = document.createElement('textarea');
-                textarea.value = textToCopy;
-                document.body.appendChild(textarea);
-                textarea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textarea);
-
-                showToast('Affirmation copied to clipboard!');
-                closeShareModal(); 
-
-            } catch (err) {
-                console.error('Could not copy text: ', err);
-                showToast('Copy failed. Please select text manually.', 'error');
-            }
-        }
-        
-        window.handleSmsShare = function(fullText) {
-            window.location.href = `sms:?body=${encodeURIComponent(fullText)}`;
-            closeShareModal();
-        }
-
-        window.handleEmailShare = function(fullText) {
-            const subject = encodeURIComponent('A Medi Mindful Moment for You');
-            const body = encodeURIComponent(fullText);
-            window.location.href = `mailto:?subject=${subject}&body=${body}`;
-            closeShareModal();
-        }
-
-        window.renderShareModal = function(affirmationText) {
-            const appTag = " - Medi Mindful Moment App";
-            const fullText = `"${affirmationText}"${appTag}`;
-            currentShareText = fullText;
-
-            const modal = document.getElementById('share-modal');
-            const content = document.getElementById('share-content-text');
-            const buttonsContainer = document.getElementById('share-buttons-container');
-            const modalContent = document.getElementById('modal-content');
-
-            content.textContent = fullText;
-            buttonsContainer.innerHTML = `
-                <button id="copy-btn-modal" onclick="copyToClipboard(currentShareText)" 
-                        class="w-full py-3 rounded-xl bg-[#104E9E] text-white font-semibold shadow-md hover:bg-blue-600 transition-colors active:scale-[.98]">
-                    Copy to Clipboard
-                </button>
-                <button onclick="handleSmsShare(currentShareText)"
-                        class="native-share-btn w-full flex items-center justify-center py-3 rounded-xl bg-gray-200 text-gray-700 font-semibold shadow-md hover:bg-gray-300 transition-colors">
-                    Share via Text (SMS)
-                </button>
-                <button onclick="handleEmailShare(currentShareText)"
-                        class="native-share-btn w-full flex items-center justify-center py-3 rounded-xl bg-gray-200 text-gray-700 font-semibold shadow-md hover:bg-gray-300 transition-colors">
-                    Share via Email
-                </button>
-            `;
-
-            modal.style.display = 'flex';
-            setTimeout(() => {
-                modal.classList.add('opacity-100');
-                modalContent.classList.replace('scale-90', 'scale-100');
-            }, 10);
-        }
-
-        window.closeShareModal = function() {
-            const modal = document.getElementById('share-modal');
-            const modalContent = document.getElementById('modal-content');
-            modal.classList.remove('opacity-100');
-            modalContent.classList.replace('scale-100', 'scale-90');
-            setTimeout(() => {
-                modal.style.display = 'none';
-            }, 300);
-        }
-        
-        window.shareFromHistory = function(text) {
-            renderShareModal(text);
-        }
-
-        // --- UI RENDERING FUNCTIONS ---
-
-        window.renderMoodSelector = function() {
-            document.getElementById('content-area').dataset.view = 'selector';
-            const moods = ['Anxious', 'Excited', 'Tired', 'Confident', 'Overwhelmed', 'Neutral'];
-            
-            document.getElementById('content-area').innerHTML = `
-                <h2 class="text-xl md:text-2xl font-bold text-gray-700 text-center mb-8">How are you feeling right now?</h2>
-                <div class="grid grid-cols-2 gap-4">
-                    ${moods.map(mood => `
-                        <button onclick="handleGenerateNext('${mood}')" 
-                                class="mood-chip p-5 rounded-2xl shadow-lg text-lg font-semibold transition-all duration-200 
-                                       bg-blue-100 text-[#104E9E] hover:bg-blue-300 hover:shadow-xl active:scale-[.98] 
-                                       focus:outline-none focus:ring-4 focus:ring-blue-300">
-                            ${mood}
-                        </button>
-                    `).join('')}
-                </div>
-            `;
-            stackIndex = -1;
-            sessionStack.length = 0;
-            currentAffirmation = null;
-        }
-
-        window.handleGenerateNext = function(mood) {
-            const newAff = generateAffirmation(mood);
-            if (newAff) {
-                pushToStack(newAff);
-                renderAffirmationCard(mood, false);
-            } else {
-                document.getElementById('content-area').innerHTML = `
-                    <div class="text-center p-6 rounded-xl bg-red-100 text-red-700">
-                        <p class="font-bold mb-2">Content Exhausted</p>
-                        <p>We've run out of unique affirmations for your mood. Please try again tomorrow!</p>
-                        <button onclick="renderMoodSelector()" class="mt-4 text-red-500 font-medium">Go Back</button>
-                    </div>
-                `;
-            }
-        }
-
-        window.renderAffirmationCard = function(mood, generateNew = true) {
-            document.getElementById('content-area').dataset.view = 'card';
-            
-            if (generateNew) {
-                handleGenerateNext(mood);
-                return;
-            }
-            
-            if (sessionStack.length > 0 && stackIndex >= 0) {
-                currentAffirmation = sessionStack[stackIndex];
-            } else if (history.length > 0) {
-                currentAffirmation = history[0];
-            } else {
-                currentAffirmation = null; 
-                renderMoodSelector();
-                return;
-            }
-
-            const aff = currentAffirmation;
-            const isFav = favorites.includes(aff.seed_id);
-            
-            // Sync docId with history if it exists there
-            const existingEntry = history.find(h => h.seed_id === aff.seed_id);
-            if (existingEntry) aff.docId = existingEntry.docId;
-
-            const canGoBack = stackIndex > 0;
-            const canGoForward = stackIndex < sessionStack.length - 1;
-
-            document.getElementById('content-area').innerHTML = `
-                <div class="text-center">
-                    <h3 class="text-blue-500 mb-8 text-md uppercase tracking-widest font-semibold">Affirmation for feeling ${aff.mood}</h3>
-                    <div class="bg-gradient-to-r from-blue-50 to-indigo-100 p-8 rounded-3xl shadow-2xl border-4 border-blue-200 transition-all duration-500">
-                        <p class="text-3xl md:text-4xl font-light text-gray-800 leading-snug italic">
-                            "${aff.text}"
-                        </p>
-                    </div>
-                    <div class="flex items-center justify-center space-x-4 mt-10">
-                        <button onclick="navigateStack(-1)" ${!canGoBack ? 'disabled' : ''}
-                                class="p-3 rounded-full transition-colors shadow-md active:scale-[.95] ${canGoBack ? 'bg-gray-200 text-gray-600 hover:bg-gray-300' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
-                                <path fill-rule="evenodd" d="M7.72 12.53a.75.75 0 0 1 0-1.06l7.5-7.5a.75.75 0 1 1 1.06 1.06L9.31 12l6.97 6.97a.75.75 0 1 1-1.06 1.06l-7.5-7.5Z" clip-rule="evenodd" />
-                            </svg>
-                        </button>
-                        <div class="flex space-x-6">
-                            <button id="save-btn" onclick="handleAction('Save', '${mood}')" 
-                                    class="p-4 rounded-full transition-colors shadow-lg active:scale-[.95] ${isFav ? 'bg-yellow-400 text-white hover:bg-yellow-500 shadow-yellow-300/50' : 'bg-[#104E9E] text-white hover:bg-blue-600 shadow-[#104E9E]/50'}">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-7 h-7">
-                                    <path fill-rule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" clip-rule="evenodd" />
-                                </svg>
-                            </button>
-                            <button onclick="handleAction('Share', '${aff.mood}')"
-                                    class="p-4 rounded-full bg-gray-200 text-gray-600 hover:bg-gray-300 transition-colors shadow-md active:scale-[.95]">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-7 h-7">
-                                    <path fill-rule="evenodd" d="M15.75 4.5a3 3 0 1 1 .823 5.429L11.54 13.5H9.75a2.25 2.25 0 0 0-2.25 2.25v2.25a2.25 2.25 0 0 0 2.25 2.25H16.5a2.25 2.25 0 0 0 2.25-2.25v-2.25a2.25 2.25 0 0 0-2.25-2.25H14.26l4.986-3.693A3 3 0 0 1 15.75 4.5Z" clip-rule="evenodd" />
-                                </svg>
-                            </button>
-                        </div>
-                        <button onclick="${canGoForward ? `navigateStack(1)` : `handleGenerateNext('${mood}')`}"
-                                class="p-3 rounded-full transition-colors shadow-md active:scale-[.95] bg-gray-200 text-gray-600 hover:bg-gray-300">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
-                                <path fill-rule="evenodd" d="M16.28 12.53a.75.75 0 0 0 0-1.06l-7.5-7.5a.75.75 0 0 0-1.06 1.06L14.69 12l-6.97 6.97a.75.75 0 1 0 1.06 1.06l7.5-7.5Z" clip-rule="evenodd" />
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-            `;
-        }
-
-        window.renderHistory = function(view) {
-            document.getElementById('content-area').dataset.view = view;
-            const isHistoryView = view === 'history';
-            const title = isHistoryView ? 'Your Affirmation History' : 'Your Favorites';
-            
-            let listData = isHistoryView ? history : history.filter(h => h.is_favorite);
-
-            if (!isHistoryView) {
-                const uniqueFavoritesMap = new Map();
-                listData.forEach(item => {
-                    if (item.is_favorite) {
-                        uniqueFavoritesMap.set(item.seed_id, item);
-                    }
-                });
-                listData = Array.from(uniqueFavoritesMap.values()).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-            }
-
-            const contentHtml = `
-                <div class="mb-6">
-                    <div class="flex p-1 bg-gray-100 rounded-xl shadow-inner">
-                        <button onclick="renderHistory('history')" class="flex-1 py-2 text-sm font-bold rounded-lg transition-all ${isHistoryView ? 'bg-white shadow-md text-[#104E9E]' : 'text-gray-500 hover:text-blue-500'}">History</button>
-                        <button onclick="renderHistory('favorites')" class="flex-1 py-2 text-sm font-bold rounded-lg transition-all ${!isHistoryView ? 'bg-white shadow-md text-[#104E9E]' : 'text-gray-500 hover:text-blue-500'}">Favorites</button>
-                    </div>
-                </div>
-                <h2 class="text-2xl font-bold text-gray-800 mb-4">${title}</h2>
-                <div class="space-y-3 max-h-96 overflow-y-auto pr-2 custom-scroll">
-                    ${listData.length > 0 ? listData.map(item => {
-                        const isFav = item.is_favorite;
-                        const date = item.timestamp ? new Date(item.timestamp).toLocaleDateString() : 'N/A';
-                        return `
-                            <div class="p-4 bg-white border border-gray-200 rounded-xl shadow-md flex items-center space-x-3 hover:bg-gray-50 transition-colors">
-                                <button onclick="toggleFavorite('${item.docId}', ${!isFav})" 
-                                        class="p-2 flex-shrink-0 rounded-full transition-colors ${isFav ? 'bg-yellow-400 text-white hover:bg-yellow-500' : 'bg-gray-200 text-gray-500 hover:bg-gray-300'}">
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
-                                        <path fill-rule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" clip-rule="evenodd" />
-                                    </svg>
-                                </button>
-                                <div class="flex-grow">
-                                    <p class="text-base font-medium text-gray-800 italic">"${item.text_content}"</p>
-                                    <div class="flex items-center space-x-2 mt-1 text-xs text-gray-500">
-                                        <span class="bg-blue-200 text-[#104E9E] px-2 py-0.5 rounded-full font-semibold">${item.mood}</span>
-                                        <span class="text-gray-400">•</span>
-                                        <span>${date}</span>
-                                    </div>
-                                </div>
-                                <button onclick="shareFromHistory(\"${item.text_content}\")"
-                                        class="p-2 flex-shrink-0 rounded-full transition-colors bg-gray-200 text-gray-500 hover:bg-gray-300 hover:text-[#104E9E]">
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
-                                        <path fill-rule="evenodd" d="M15.75 4.5a3 3 0 1 1 .823 5.429L11.54 13.5H9.75a2.25 2.25 0 0 0-2.25 2.25v2.25a2.25 2.25 0 0 0 2.25 2.25H16.5a2.25 2.25 0 0 0 2.25-2.25v-2.25a2.25 2.25 0 0 0-2.25-2.25H14.26l4.986-3.693A3 3 0 0 1 15.75 4.5Z" clip-rule="evenodd" />
-                                    </svg>
-                                </button>
-                            </div>
-                        `;
-                    }).join('') : `
-                        <div class="text-center text-gray-500 p-8 bg-gray-50 rounded-xl">
-                            <p class="mb-2">${isHistoryView ? 'No affirmations recorded yet.' : 'Your favorites list is empty!'}</p>
-                            <button onclick="renderMoodSelector()" class="text-blue-500 font-bold hover:underline">Start now</button>
-                        </div>
-                    `}
-                </div>
-            `;
-            document.getElementById('content-area').innerHTML = contentHtml;
-        }
-
-        window.handleAction = function(action, mood) {
-            const aff = currentAffirmation;
-            if (!aff) return;
-
-            switch (action) {
-                case 'Save':
-                    const existingEntry = history.find(h => h.docId === aff.docId);
-                    const newFavState = existingEntry ? !existingEntry.is_favorite : true;
-                    
-                    if (existingEntry) {
-                        existingEntry.is_favorite = newFavState;
-                    }
-                    aff.is_favorite = newFavState;
-                    
-                    persistHistory();
-                    renderAffirmationCard(mood, false); // Re-render to show updated button state
-                    break;
-                case 'Share':
-                    renderShareModal(aff.text);
-                    break;
-            }
-        }
-
-        window.toggleFavorite = function(docId, newFavState) {
-             const entry = history.find(h => h.docId === docId);
-             if (entry) {
-                 entry.is_favorite = newFavState;
-                 persistHistory();
-             }
-        }
-
-        // Initialize the application on load
-        initializeApp();
-    </script>
+    <script type="module" src="/src/main.js"></script>
 </body>
 </html>

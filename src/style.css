@@ -1,0 +1,173 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    /* Light Mode Design System Tokens */
+    --bg-app: #f4f6f8;
+    --bg-card: #ffffff;
+    --text-main: #1e293b;
+    --text-muted: #64748b;
+    --border-subtle: #e2e8f0;
+
+    /* Mood Accent Palettes - Light Mode */
+    --accent-anxious-bg: #e6f2f0;
+    --accent-anxious-text: #2d5a52;
+    --accent-anxious-border: #a8d5cd;
+
+    --accent-excited-bg: #fdf3e7;
+    --accent-excited-text: #8c4a1b;
+    --accent-excited-border: #f4cfab;
+
+    --accent-tired-bg: #f0f0f7;
+    --accent-tired-text: #484766;
+    --accent-tired-border: #c4c3e0;
+
+    --accent-confident-bg: #edf2fc;
+    --accent-confident-text: #2a437e;
+    --accent-confident-border: #acc2f0;
+
+    --accent-overwhelmed-bg: #fbf0f2;
+    --accent-overwhelmed-text: #783946;
+    --accent-overwhelmed-border: #ebc0c7;
+
+    --accent-neutral-bg: #f1f4f6;
+    --accent-neutral-text: #3e4c59;
+    --accent-neutral-border: #cbd5e1;
+}
+
+.dark {
+    /* Dark Mode Design System Tokens */
+    --bg-app: #0f172a;
+    --bg-card: #1e293b;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --border-subtle: #334155;
+
+    /* Mood Accent Palettes - Dark Mode */
+    --accent-anxious-bg: #162e2a;
+    --accent-anxious-text: #80c7ba;
+    --accent-anxious-border: #274e47;
+
+    --accent-excited-bg: #331f12;
+    --accent-excited-text: #f0a675;
+    --accent-excited-border: #59351e;
+
+    --accent-tired-bg: #1f1f2e;
+    --accent-tired-text: #a8a6d9;
+    --accent-tired-border: #363552;
+
+    --accent-confident-bg: #152238;
+    --accent-confident-text: #8ba9ec;
+    --accent-confident-border: #24385c;
+
+    --accent-overwhelmed-bg: #301b20;
+    --accent-overwhelmed-text: #e098a6;
+    --accent-overwhelmed-border: #522d36;
+
+    --accent-neutral-bg: #1c2530;
+    --accent-neutral-text: #94a8be;
+    --accent-neutral-border: #2e3d4f;
+}
+
+html, body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-app);
+    color: var(--text-main);
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Theme Utilities */
+.bg-app-theme { background-color: var(--bg-app); }
+.bg-card-theme { background-color: var(--bg-card); }
+.text-main-theme { color: var(--text-main); }
+.text-muted-theme { color: var(--text-muted); }
+.border-subtle-theme { border-color: var(--border-subtle); }
+
+/* Mood Responsive Background Classes for Ambient View & Cards */
+.mood-bg-anxious { background-color: var(--accent-anxious-bg); color: var(--text-main); }
+.mood-bg-excited { background-color: var(--accent-excited-bg); color: var(--text-main); }
+.mood-bg-tired { background-color: var(--accent-tired-bg); color: var(--text-main); }
+.mood-bg-confident { background-color: var(--accent-confident-bg); color: var(--text-main); }
+.mood-bg-overwhelmed { background-color: var(--accent-overwhelmed-bg); color: var(--text-main); }
+.mood-bg-neutral { background-color: var(--accent-neutral-bg); color: var(--text-main); }
+
+/* Mood Chips & Cards Accent Styling */
+.mood-chip[data-mood="Anxious"], .mood-card-Anxious {
+    background-color: var(--accent-anxious-bg);
+    color: var(--accent-anxious-text);
+    border: 1px solid var(--accent-anxious-border);
+}
+.mood-chip[data-mood="Excited"], .mood-card-Excited {
+    background-color: var(--accent-excited-bg);
+    color: var(--accent-excited-text);
+    border: 1px solid var(--accent-excited-border);
+}
+.mood-chip[data-mood="Tired"], .mood-card-Tired {
+    background-color: var(--accent-tired-bg);
+    color: var(--accent-tired-text);
+    border: 1px solid var(--accent-tired-border);
+}
+.mood-chip[data-mood="Confident"], .mood-card-Confident {
+    background-color: var(--accent-confident-bg);
+    color: var(--accent-confident-text);
+    border: 1px solid var(--accent-confident-border);
+}
+.mood-chip[data-mood="Overwhelmed"], .mood-card-Overwhelmed {
+    background-color: var(--accent-overwhelmed-bg);
+    color: var(--accent-overwhelmed-text);
+    border: 1px solid var(--accent-overwhelmed-border);
+}
+.mood-chip[data-mood="Neutral"], .mood-card-Neutral {
+    background-color: var(--accent-neutral-bg);
+    color: var(--accent-neutral-text);
+    border: 1px solid var(--accent-neutral-border);
+}
+
+/* Accessible Visible Focus Ring */
+button:focus-visible, a:focus-visible, input:focus-visible, [tabindex]:focus-visible {
+    outline: 2px solid #3b82f6 !important;
+    outline-offset: 2px !important;
+}
+
+/* Custom scrollbar for history to match theme */
+.custom-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+.custom-scroll::-webkit-scrollbar-thumb {
+    background-color: var(--border-subtle);
+    border-radius: 3px;
+}
+.custom-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* Styles for the Toast Notification */
+.toast-enter {
+    opacity: 0;
+    transform: translateY(20px);
+}
+.toast-enter-active {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 0.3s, transform 0.3s;
+}
+.toast-exit {
+    opacity: 1;
+    transform: translateY(0);
+}
+.toast-exit-active {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.3s, transform 0.3s;
+}
+
+/* Reduced motion overrides */
+@media (prefers-reduced-motion: reduce) {
+    *, ::before, ::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
