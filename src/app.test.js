@@ -10,6 +10,8 @@ import { showToast } from './toast.js';
 import { hasFirebaseConfig, getCurrentUser } from './auth.js';
 import { mergeHistory, syncDocToCloud } from './sync.js';
 import { updateAuthUI } from './ui.js';
+import { IdleManager } from '../electron/idleLogic.js';
+import { loadSettings, saveSettings, getSettings, resetSettings, DEFAULT_SETTINGS } from '../electron/settings.js';
 
 if (typeof window !== 'undefined') {
     const nativeGetComputedStyle = window.getComputedStyle;
@@ -677,6 +679,86 @@ describe('Medi Mindful Moment - Complete Unit Tests', () => {
             loadHistory();
 
             expect(getHistory().length).toBe(0);
+        });
+    });
+
+    describe('Task 010: Electron Desktop & Idle Screensaver Logic Tests', () => {
+        beforeEach(() => {
+            resetSettings();
+        });
+
+        it('evaluates idle threshold and triggers screensaver when system idle time meets or exceeds threshold', () => {
+            const triggerSpy = vi.fn();
+            const manager = new IdleManager({ thresholdMinutes: 5, onTrigger: triggerSpy });
+
+            expect(manager.evaluateIdleTime(200)).toBe('idle');
+            expect(triggerSpy).not.toHaveBeenCalled();
+
+            expect(manager.evaluateIdleTime(300)).toBe('triggered');
+            expect(triggerSpy).toHaveBeenCalledTimes(1);
+            expect(manager.isScreensaverActive).toBe(true);
+        });
+
+        it('prevents dismiss-then-immediately-reopen loop after screensaver dismissal until system idle time resets', () => {
+            const triggerSpy = vi.fn();
+            const manager = new IdleManager({ thresholdMinutes: 5, onTrigger: triggerSpy });
+
+            // Trigger screensaver
+            manager.evaluateIdleTime(300);
+            expect(triggerSpy).toHaveBeenCalledTimes(1);
+
+            // User dismisses screensaver at 300s
+            manager.recordDismissal(300);
+            expect(manager.isScreensaverActive).toBe(false);
+
+            // Subsequent evaluations while system idle clock is still above threshold (301s, 305s)
+            expect(manager.evaluateIdleTime(301)).toBe('suppressed');
+            expect(manager.evaluateIdleTime(305)).toBe('suppressed');
+            expect(triggerSpy).toHaveBeenCalledTimes(1); // Not called again!
+
+            // User acts -> system idle time resets to 0s
+            expect(manager.evaluateIdleTime(0)).toBe('idle');
+            expect(manager.dismissedAtIdleTime).toBeNull();
+
+            // Next idle period reaches 300s again -> triggers cleanly!
+            expect(manager.evaluateIdleTime(300)).toBe('triggered');
+            expect(triggerSpy).toHaveBeenCalledTimes(2);
+        });
+
+        it('persists and loads electron app settings across sessions with default fallbacks', () => {
+            resetSettings();
+            const initial = getSettings();
+            expect(initial.idleThresholdMinutes).toBe(5);
+            expect(initial.mood).toBe('All');
+            expect(initial.rotationIntervalSeconds).toBe(30);
+            expect(initial.openAtLogin).toBe(false);
+
+            const updated = saveSettings(null, { idleThresholdMinutes: 10, mood: 'Calm', openAtLogin: true });
+            expect(updated.idleThresholdMinutes).toBe(10);
+            expect(updated.mood).toBe('Calm');
+            expect(updated.openAtLogin).toBe(true);
+
+            const loaded = getSettings();
+            expect(loaded.idleThresholdMinutes).toBe(10);
+            expect(loaded.mood).toBe('Calm');
+        });
+
+        it('updates idle threshold dynamically when settings change', () => {
+            const triggerSpy = vi.fn();
+            const manager = new IdleManager({ thresholdMinutes: 10, onTrigger: triggerSpy });
+
+            expect(manager.evaluateIdleTime(300)).toBe('idle');
+
+            manager.setThresholdMinutes(3);
+            expect(manager.evaluateIdleTime(180)).toBe('triggered');
+            expect(triggerSpy).toHaveBeenCalledTimes(1);
+        });
+
+        it('handles edge cases in idle time evaluation and threshold setting', () => {
+            const manager = new IdleManager({ thresholdMinutes: -5 });
+            expect(manager.thresholdSeconds).toBe(300);
+
+            expect(manager.evaluateIdleTime(-10)).toBe('idle');
         });
     });
 });

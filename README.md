@@ -1,6 +1,33 @@
 # Medi Mindful Moment
 
-A responsive, local-first daily affirmation web application built with JavaScript, Tailwind CSS, and Vite.
+A responsive, local-first daily affirmation web & desktop application built with JavaScript, Tailwind CSS, Vite, and Electron.
+
+---
+
+## Electron Desktop Application & Screensaver Setup
+
+Medi Mindful Moment delivers a cross-platform desktop screensaver experience for Windows and macOS.
+
+### Desktop Commands
+```bash
+# Run desktop app in development mode against Vite dev server
+npm run electron:dev
+
+# Package native desktop distributables for host platform (Windows NSIS/portable, macOS DMG)
+npm run electron:build
+```
+
+### Architecture & Idle Screensaver Behavior
+- **Idle Detection**: Uses Electron `powerMonitor.getSystemIdleTime()` polling to track system activity.
+- **Standalone Ambient Reuse**: Reuses the existing web ambient view at `?ambient=1&mood=<Mood>` loaded on the primary display.
+- **Dismissal & Anti-Loop Gate**: Any key press or mouse input dismisses the fullscreen screensaver and records dismissal state to prevent dismiss-then-immediately-reopen loops while system idle time remains above threshold.
+- **Settings Persistence**: Persists user settings (`idleThresholdMinutes`, `mood`, `rotationIntervalSeconds`, `openAtLogin`) in `settings.json` under OS `userData`.
+- **Launch at Login**: Managed via `app.setLoginItemSettings({ openAtLogin })` (default disabled).
+- **Security Scoping**: Enforces `contextIsolation: true`, `nodeIntegration: false`, and exposes minimal IPC APIs via `contextBridge` in `electron/preload.js`.
+
+### Code-Signing Reality & Distribution
+- **Windows**: Unsigned `.exe` installers (`NSIS`) and portable executables trigger Microsoft Defender SmartScreen warnings ("Unknown Publisher") on initial execution. Production distribution requires an EV Code Signing Certificate.
+- **macOS**: Unsigned `.dmg` installers built on macOS are blocked by Apple Gatekeeper ("App cannot be opened because it is from an unidentified developer"). Official distribution requires an active Apple Developer Program subscription ($99/year), code signing certificates, and Xcode notarization (`xcrun notarytool`). For local testing of unsigned builds, users must right-click the `.app` and select **Open**, or clear quarantine attributes via `xattr -cr /path/to/App.app`. Note that macOS binaries cannot be produced from a Windows build host.
 
 ---
 
@@ -75,12 +102,18 @@ service cloud.firestore {
 # Install dependencies
 npm install
 
-# Run dev server
+# Run web dev server
 npm run dev
+
+# Run desktop app in development mode
+npm run electron:dev
 
 # Run unit tests
 npm test -- --run
 
-# Build production bundle
+# Build web production bundle
 npm run build
+
+# Build desktop distributables
+npm run electron:build
 ```

@@ -6,3 +6,4 @@ dist
 
 # Relay orchestration artifacts (local process notes)
 .relay/
+dist-electron
