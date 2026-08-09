@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, powerMonitor, screen, Tray, Menu } from 'electron';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import fs from 'fs';
+import { fileURLToPath, pathToFileURL } from 'url';
 import { loadSettings, saveSettings, getSettings } from './settings.js';
 import { IdleManager } from './idleLogic.js';
 
@@ -13,14 +14,18 @@ let tray = null;
 let idleManager = null;
 let checkIdleIntervalId = null;
 
-const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+const isDev = process.env.NODE_ENV === 'development' || !(app && app.isPackaged);
 
-function getAppUrl(queryParams = '') {
-    if (isDev) {
+export function getAppUrl(queryParams = '', customIsDev = null) {
+    if (process.env.VITE_DEV_SERVER_URL) {
+        return `${process.env.VITE_DEV_SERVER_URL}${queryParams}`;
+    }
+    const devMode = customIsDev !== null ? customIsDev : isDev;
+    if (devMode) {
         return `http://localhost:5173${queryParams}`;
     }
     const htmlPath = path.join(__dirname, '../dist/index.html');
-    return `file://${htmlPath}${queryParams}`;
+    return pathToFileURL(htmlPath).href + queryParams;
 }
 
 function createMainWindow() {
@@ -83,17 +88,8 @@ function openAmbientWindow() {
     ambientWindow.loadURL(url);
 
     // Dismiss screensaver on key or mouse input via IPC or window events
-    const closeAmbient = () => {
-        if (ambientWindow && !ambientWindow.isDestroyed()) {
-            ambientWindow.close();
-            ambientWindow = null;
-        }
-        const currentIdle = powerMonitor ? powerMonitor.getSystemIdleTime() : 0;
-        idleManager.recordDismissal(currentIdle);
-    };
-
     ambientWindow.webContents.on('before-input-event', (event, input) => {
-        closeAmbient();
+        closeAmbientWindow();
     });
 
     ambientWindow.on('closed', () => {
@@ -192,50 +188,58 @@ function updateTrayMenu() {
     tray.setContextMenu(contextMenu);
 }
 
-app.whenReady().then(() => {
-    const userDataPath = app.getPath('userData');
-    const settings = loadSettings(userDataPath);
+if (app && typeof app.whenReady === 'function') {
+    app.whenReady().then(() => {
+        const userDataPath = app.getPath('userData');
+        const settings = loadSettings(userDataPath);
 
-    // Apply login item settings
-    app.setLoginItemSettings({ openAtLogin: Boolean(settings.openAtLogin) });
+        // Apply login item settings
+        app.setLoginItemSettings({ openAtLogin: Boolean(settings.openAtLogin) });
 
-    setupIdleManager();
-    createMainWindow();
-    setupTray();
+        setupIdleManager();
+        createMainWindow();
+        setupTray();
 
-    // IPC Handlers
-    ipcMain.handle('get-settings', () => {
-        return getSettings();
+        // IPC Handlers
+        ipcMain.handle('get-settings', () => {
+            return getSettings();
+        });
+
+        ipcMain.handle('save-settings', (event, newSettings) => {
+            const updated = saveSettings(app.getPath('userData'), newSettings);
+            if (idleManager && newSettings.idleThresholdMinutes) {
+                idleManager.setThresholdMinutes(newSettings.idleThresholdMinutes);
+            }
+            updateTrayMenu();
+            return updated;
+        });
+
+        ipcMain.on('dismiss-ambient', () => {
+            closeAmbientWindow();
+        });
+
+        app.on('activate', () => {
+            if (BrowserWindow.getAllWindows().length === 0) {
+                createMainWindow();
+            }
+        });
     });
 
-    ipcMain.handle('save-settings', (event, newSettings) => {
-        const updated = saveSettings(app.getPath('userData'), newSettings);
-        if (idleManager && newSettings.idleThresholdMinutes) {
-            idleManager.setThresholdMinutes(newSettings.idleThresholdMinutes);
+    app.on('window-all-closed', () => {
+        if (process.platform !== 'darwin') {
+            app.quit();
         }
-        updateTrayMenu();
-        return updated;
     });
 
-    ipcMain.on('dismiss-ambient', () => {
-        closeAmbientWindow();
-    });
-
-    app.on('activate', () => {
-        if (BrowserWindow.getAllWindows().length === 0) {
-            createMainWindow();
+    app.on('will-quit', () => {
+        if (checkIdleIntervalId) {
+            clearInterval(checkIdleIntervalId);
+        }
+        if (tray && !tray.isDestroyed()) {
+            try {
+                tray.destroy();
+            } catch (e) {}
+            tray = null;
         }
     });
-});
-
-app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-        app.quit();
-    }
-});
-
-app.on('will-quit', () => {
-    if (checkIdleIntervalId) {
-        clearInterval(checkIdleIntervalId);
-    }
-});
+}

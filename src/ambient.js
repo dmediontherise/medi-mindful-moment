@@ -23,9 +23,10 @@ export function getActiveAmbientTimer() {
  *        (the desktop screensaver), which has nothing to carry over and
  *        generates its own.
  */
-export function startAmbient(mood = 'All', intervalMs = 30000, initialAffirmation = null) {
+export function startAmbient(mood = 'All', intervalMs = 30000, initialAffirmation = null, options = {}) {
     stopAmbient(); // Clean up existing ambient session to prevent timer accumulation
 
+    const dismissOnMouseMove = typeof options === 'boolean' ? options : Boolean(options && options.dismissOnMouseMove);
     activeAmbientMood = mood;
 
     const ambientEl = document.createElement('div');
@@ -68,6 +69,18 @@ export function startAmbient(mood = 'All', intervalMs = 30000, initialAffirmatio
 
     const modifierKeys = new Set(['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Tab']);
 
+    let initialMousePos = null;
+    function handleMouseMove(e) {
+        if (!initialMousePos) {
+            initialMousePos = { x: e.clientX, y: e.clientY };
+            return;
+        }
+        const dist = Math.hypot(e.clientX - initialMousePos.x, e.clientY - initialMousePos.y);
+        if (dist > 10) {
+            stopAmbient();
+        }
+    }
+
     function handleKeyDown(e) {
         // Dismiss on any keypress except bare modifier keypresses
         if (!modifierKeys.has(e.key)) {
@@ -85,6 +98,9 @@ export function startAmbient(mood = 'All', intervalMs = 30000, initialAffirmatio
     }
 
     ambientEl.addEventListener('click', handleClick);
+    if (dismissOnMouseMove) {
+        ambientEl.addEventListener('mousemove', handleMouseMove);
+    }
     if (typeof document !== 'undefined') {
         document.addEventListener('keydown', handleKeyDown);
         document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -92,6 +108,9 @@ export function startAmbient(mood = 'All', intervalMs = 30000, initialAffirmatio
 
     ambientEl._cleanup = () => {
         ambientEl.removeEventListener('click', handleClick);
+        if (dismissOnMouseMove) {
+            ambientEl.removeEventListener('mousemove', handleMouseMove);
+        }
         if (typeof document !== 'undefined') {
             document.removeEventListener('keydown', handleKeyDown);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -108,6 +127,10 @@ export function stopAmbient() {
     if (fadeTimeoutId !== null) {
         clearTimeout(fadeTimeoutId);
         fadeTimeoutId = null;
+    }
+
+    if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.dismissAmbient === 'function') {
+        window.electronAPI.dismissAmbient();
     }
 
     if (typeof document !== 'undefined') {
