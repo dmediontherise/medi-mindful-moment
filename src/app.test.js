@@ -611,8 +611,38 @@ describe('Medi Mindful Moment - Complete Unit Tests', () => {
     });
 
     describe('Task 008: Firebase Auth & Firestore Local-First Sync Tests', () => {
+        // Render updateAuthUI against an explicitly controlled config state.
+        // These tests previously asserted hasFirebaseConfig() === false, which
+        // is a fact about the machine (whether a .env exists), not a behavior.
+        // They passed on a fresh clone and in CI, then broke for any developer
+        // who actually configured Firebase locally. Stub the state instead so
+        // both branches are covered deterministically.
+        async function renderAuthUIWith({ configured }) {
+            vi.resetModules();
+            vi.doMock('./auth.js', async (importOriginal) => {
+                const actual = await importOriginal();
+                return { ...actual, hasFirebaseConfig: () => configured };
+            });
+            const { updateAuthUI: freshUpdateAuthUI } = await import('./ui.js');
+            document.body.innerHTML = `
+                <span id="auth-status"></span>
+                <button id="auth-action-btn"></button>
+            `;
+            freshUpdateAuthUI(null);
+            return {
+                statusEl: document.getElementById('auth-status'),
+                actionBtn: document.getElementById('auth-action-btn')
+            };
+        }
+
+        afterEach(() => {
+            vi.doUnmock('./auth.js');
+            vi.resetModules();
+        });
+
         it('verifies signed-out flows work cleanly and make no Firebase calls', () => {
-            expect(hasFirebaseConfig()).toBe(false);
+            // True whether or not Firebase is configured: with no signed-in
+            // user, history is served entirely from localStorage.
             expect(getCurrentUser()).toBeNull();
             expect(() => {
                 const history = loadHistory();
@@ -620,16 +650,17 @@ describe('Medi Mindful Moment - Complete Unit Tests', () => {
             }).not.toThrow();
         });
 
-        it('degrades gracefully when Firebase config environment variables are absent', () => {
-            document.body.innerHTML = `
-                <span id="auth-status"></span>
-                <button id="auth-action-btn"></button>
-            `;
-            updateAuthUI(null);
-            const statusEl = document.getElementById('auth-status');
-            const actionBtn = document.getElementById('auth-action-btn');
+        it('degrades gracefully when Firebase config environment variables are absent', async () => {
+            const { statusEl, actionBtn } = await renderAuthUIWith({ configured: false });
             expect(statusEl.textContent).toContain('Signed out');
             expect(actionBtn.disabled).toBe(true);
+            expect(actionBtn.title).toContain('no Firebase config');
+        });
+
+        it('enables the sign-in control when Firebase config is present', async () => {
+            const { statusEl, actionBtn } = await renderAuthUIWith({ configured: true });
+            expect(statusEl.textContent).toContain('Signed out');
+            expect(actionBtn.disabled).toBe(false);
         });
 
         it('merges local and cloud history using union deduplicated by docId and preserving favorites on either side', () => {
