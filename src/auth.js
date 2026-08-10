@@ -23,6 +23,7 @@ export function hasFirebaseConfig() {
 let app = null;
 let auth = null;
 let db = null;
+let overrideDb = null;
 
 if (hasFirebaseConfig()) {
     try {
@@ -37,7 +38,14 @@ if (hasFirebaseConfig()) {
     }
 }
 
+export function setDbForTesting(customDb) {
+    overrideDb = customDb;
+}
+
 export function getDb() {
+    if (overrideDb) {
+        return overrideDb;
+    }
     return db;
 }
 

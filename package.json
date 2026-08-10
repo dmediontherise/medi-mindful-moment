@@ -10,12 +10,17 @@
     "preview": "vite preview",
     "test": "vitest",
     "electron:dev": "electron .",
-    "electron:build": "vite build && electron-builder"
+    "electron:build": "vite build && electron-builder",
+    "test:integration": "vitest run src/sync.integration.test.js",
+    "emulator": "firebase emulators:start --only firestore",
+    "test:integration:emulator": "firebase emulators:exec --only firestore \"vitest run src/sync.integration.test.js\""
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.1",
     "autoprefixer": "^10.4.20",
     "electron": "^43.3.0",
     "electron-builder": "^26.15.3",
+    "firebase-tools": "^15.26.0",
     "jsdom": "^26.0.0",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17",

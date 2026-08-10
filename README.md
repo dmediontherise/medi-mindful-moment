@@ -117,3 +117,26 @@ npm run build
 # Build desktop distributables
 npm run electron:build
 ```
+
+### Firestore integration tests
+
+The sign-in merge (union of local and cloud history) is the one path where a bug
+loses user data, so it is also tested against the **Firestore emulator** using the
+real Firebase SDK rather than a mock.
+
+These specs are **skipped automatically** when the emulator is not running, so
+`npm test` works on a machine without it. They never touch the production
+Firebase project — they use a dummy project id (`demo-medi-test`) against
+`127.0.0.1:8080`.
+
+The emulator requires a **Java runtime (JRE/JDK 11+)**; without one,
+`firebase-tools` cannot start it and the specs stay skipped.
+
+```bash
+# Run the integration suite, starting and stopping the emulator around it
+npm run test:integration:emulator
+
+# Or start a standalone emulator on 127.0.0.1:8080 and run the specs against it
+npm run emulator
+npm run test:integration
+```

@@ -63,8 +63,8 @@ export function mergeHistory(localItems = [], cloudItems = []) {
  * Replicates a single document write to Firestore.
  * Failures surface as non-blocking toasts and do not drop local writes.
  */
-export async function syncDocToCloud(user, item) {
-    const db = getDb();
+export async function syncDocToCloud(user, item, dbOverride = null) {
+    const db = dbOverride || getDb();
     if (!db || !user || !user.uid || !item || !item.docId) {
         return;
     }
@@ -81,10 +81,11 @@ export async function syncDocToCloud(user, item) {
 /**
  * Synchronizes all local items to cloud.
  */
-export async function syncAllLocalToCloud(user, localItems) {
+export async function syncAllLocalToCloud(user, localItems, dbOverride = null) {
     if (!localItems || localItems.length === 0) return;
+    const db = dbOverride || getDb();
     for (const item of localItems) {
-        await syncDocToCloud(user, item);
+        await syncDocToCloud(user, item, db);
     }
 }
 
@@ -94,10 +95,11 @@ export async function syncAllLocalToCloud(user, localItems) {
  * 
  * @param {Object} user 
  * @param {Function} onCloudUpdate 
+ * @param {Object} dbOverride
  * @returns {Function} Unsubscribe function
  */
-export function setupCloudListener(user, onCloudUpdate) {
-    const db = getDb();
+export function setupCloudListener(user, onCloudUpdate, dbOverride = null) {
+    const db = dbOverride || getDb();
     if (!db || !user || !user.uid) {
         return () => {};
     }
