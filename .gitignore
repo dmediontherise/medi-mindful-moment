@@ -7,3 +7,5 @@ dist
 # Relay orchestration artifacts (local process notes)
 .relay/
 dist-electron
+firestore-debug.log
+firebase-debug.log
